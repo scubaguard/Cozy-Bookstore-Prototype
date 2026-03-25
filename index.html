@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paper Dreams — Bookstore Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Lora:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body, #root { min-height: 100vh; background: #fdf6e3; }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none; height: 6px;
+    background: #e8d5b7; border-radius: 3px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+    background: #6d4c41; border-radius: 50%; cursor: pointer;
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d4c4a8; border-radius: 3px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+const { useState, useReducer, useMemo, useEffect, useRef, Fragment } = React;
+
+// ── STORAGE ABSTRACTION ──
+const SAVE_KEY = "paper-dreams-save";
+const store = {
+  async get(key) {
+    try { return localStorage.getItem(key); } catch (e) {}
+    return null;
+  },
+  async set(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) {}
+  },
+  async del(key) {
+    try { localStorage.removeItem(key); } catch (e) {}
+  },
+};
+
+// ═══════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════
+const QUOTES = [
+  { t: "A room without books is like a body without a soul.", a: "Cicero" },
+  { t: "So many books, so little time.", a: "Frank Zappa" },
+  { t: "There is no friend as loyal as a book.", a: "Ernest Hemingway" },
+  { t: "Books are a uniquely portable magic.", a: "Stephen King" },
+  { t: "I have always imagined that Paradise will be a kind of library.", a: "Jorge Luis Borges" },
+  { t: "A reader lives a thousand lives before he dies.", a: "George R.R. Martin" },
+  { t: "That's the thing about books. They let you travel without moving your feet.", a: "Jhumpa Lahiri" },
+  { t: "Think before you speak. Read before you think.", a: "Fran Lebowitz" },
+  { t: "Until I feared I would lose it, I never loved to read. One does not love breathing.", a: "Harper Lee" },
+  { t: "We read to know we are not alone.", a: "William Nicholson" },
+  { t: "Words are, in my not-so-humble opinion, our most inexhaustible source of magic.", a: "J.K. Rowling" },
+  { t: "Fairy tales are more than true: not because they tell us dragons exist, but because they tell us dragons can be beaten.", a: "Neil Gaiman" },
+  { t: "The only thing that you absolutely have to know is the location of the library.", a: "Albert Einstein" },
+  { t: "Reading is a discount ticket to everywhere.", a: "Mary Schmich" },
+  { t: "A book is a dream that you hold in your hand.", a: "Neil Gaiman" },
+  { t: "You can never be overdressed or overeducated.", a: "Oscar Wilde" },
+  { t: "I do believe something very magical can happen when you read a good book.", a: "J.K. Rowling" },
+  { t: "Reading gives us someplace to go when we have to stay where we are.", a: "Mason Cooley" },
+  { t: "One glance at a book and you hear the voice of another person.", a: "Carl Sagan" },
+  { t: "A great book should leave you with many experiences, and slightly exhausted at the end.", a: "William Styron" },
+  { t: "I cannot live without books.", a: "Thomas Jefferson" },
+  { t: "No two persons ever read the same book.", a: "Edmund Wilson" },
+  { t: "Books are the mirrors of the soul.", a: "Virginia Woolf" },
+  { t: "Literature is the most agreeable way of ignoring life.", a: "Fernando Pessoa" },
+  { t: "The reading of all good books is like a conversation with the finest minds of past centuries.", a: "Rene Descartes" },
+  { t: "Sleep is good, he said, and books are better.", a: "George R.R. Martin" },
+  { t: "I find television very educating. Every time somebody turns on the set, I go into the other room and read a book.", a: "Groucho Marx" },
+  { t: "You can never get a cup of tea large enough or a book long enough to suit me.", a: "C.S. Lewis" },
+  { t: "Books are the quietest and most constant of friends.", a: "Charles William Eliot" },
+  { t: "The world was hers for the reading.", a: "Betty Smith" },
+  { t: "Good friends, good books, and a sleepy conscience: this is the ideal life.", a: "Mark Twain" },
+  { t: "Fill your house with stacks of books, in all the crannies and all the nooks.", a: "Dr. Seuss" },
+];
+
+const CLICK_DIALOGUES = [
+  "Do you have a copy of Lord of the Rings?",
+  "I'm looking for something by Agatha Christie.",
+  "Where's your poetry section?",
+  "Can you recommend a good mystery?",
+  "My daughter loved Charlotte's Web — what's next?",
+  "I just finished Dune and I need MORE.",
+  "Got anything by Ursula K. Le Guin?",
+  "Is the new Stephen King in yet?",
+  "I need a book that'll make me cry. Don't judge me.",
+  "Do you carry manga? Asking for a friend.",
+  "Where would I find books on woodworking?",
+  "My book club picks the WORST books. Help me survive this month.",
+  "I haven't read a book since college. Where do I start?",
+  "I need something to read during jury duty.",
+  "Do you have any signed copies?",
+  "My cat knocked my last book into the bath. I need a replacement.",
+  "What's your personal favorite book in the store?",
+  "I promised myself I'd read more this year. It's going... okay.",
+  "Can you gift wrap this? It's for someone special.",
+  "This store smells AMAZING. Old books and coffee.",
+  "I once read Pride and Prejudice in a single sitting.",
+  "I collect first editions. Got anything rare?",
+  "My kid needs summer reading books. Help!",
+  "Where's the sci-fi? I need to escape reality.",
+  "I just want to sit and read for a while. Is that okay?",
+  "I drove forty minutes to get here. Worth every mile!",
+  "My therapist said I should read more. Here I am!",
+  "This is the coziest shop I've ever been in.",
+  "Is that a shop cat? I LOVE shop cats!",
+  "Do you have anything by Haruki Murakami?",
+  "I'm looking for the perfect beach read.",
+  "Can you order a book that's not on your shelves?",
+  "I just want something with a happy ending for once.",
+  "Where are your graphic novels?",
+  "I need a good biography. Someone inspiring.",
+  "Got any recommendations for a 10-year-old who hates reading?",
+  "I'm here for the vibes, honestly. The books are a bonus.",
+  "I need a book about plants. I keep killing them.",
+  "Is there a local authors section?",
+  "I want to read what everyone's talking about. What's trending?",
+  "My flight got cancelled so... surprise bookstore trip!",
+  "Do you do book recommendations? Like a sommelier but for books?",
+  "I need a book I can read in one sitting. Under 200 pages.",
+  "Where's the true crime? Don't look at me like that.",
+  "I love the smell in here. Is that weird to say?",
+  "I'm looking for a book my mom used to read to me. I only remember the cover was blue.",
+  "Do you have anything on astronomy? I just got a telescope.",
+  "I need a self-help book but not a cringe one.",
+  "Got any good historical fiction? Medieval era preferably.",
+  "Do you have any books about bookstores? Very meta, I know.",
+  "I need something funny. Life has been too serious lately.",
+  "Where's the philosophy section? I'm having an existential crisis.",
+  "I want to get my dad a book but he says he doesn't read. Challenge accepted.",
+  "I need a really long series. I want to be committed for months.",
+  "My dog ate my bookmark. Not the book, just the bookmark. Weird, right?",
+  "I'm looking for poetry that doesn't make me feel stupid.",
+  "Do you have any books about tea? I'm becoming a connoisseur.",
+  "I just moved here and I needed a bookstore. Found you!",
+  "I want a book that'll change my life. No pressure.",
+  "My apartment is running out of shelf space. But here I am anyway.",
+  "Where are your staff picks? I trust you people.",
+  "Do you have those tiny books? Miniature editions?",
+  "I need a book about mushrooms. It's a long story.",
+  "Where's the horror section? I want nightmares.",
+  "My bag is already full of books but I keep finding more.",
+  "Where are the art books? I need something beautiful on my coffee table.",
+  "Do you have any books written in verse? Like novels in poem form?",
+  "I need a book about dogs. All dogs. Every dog.",
+  "I want to read all the Booker Prize winners. Where do I start?",
+  "I need a good memoir. Preferably someone funny.",
+  "I just retired and I'm going to read everything I never had time for.",
+  "Do you have any books on meditation? I need to calm down.",
+  "This is my third bookstore today. I might have a problem.",
+  "Got anything on home renovation? We just bought a fixer-upper.",
+  "My grandmother used to own a bookstore. Being here feels like home.",
+  "Do you have any books about knitting? I want to make a scarf.",
+  "I want something set in Paris. Fiction or nonfiction, I don't care.",
+  "This is the kind of place that makes you want to be a reader.",
+  "Do you have any books about running a bookstore? Research purposes.",
+  "I need a really thick book. I'm going to be stuck on a train for 12 hours.",
+  "I just want to say, this store makes my week every time I come in.",
+  "Do you have any books about the ocean? Preferably with pictures of whales.",
+  "My house is 90% bookshelves at this point. My partner is concerned.",
+  "Do you have any books with maps inside? I love books with maps.",
+  "This store has more personality than most people I know.",
+];
+
+const LOCATIONS = {
+  college: { name: "Greenfield University Town", difficulty: "Easiest", icon: "🎓", desc: "Big open space. Lots of room to expand.", startingCash: 15000, monthlyRent: 1200, dailyTrafficBase: [40, 65], genreBonus: { academic: 1.4, fiction: 1.2, scifi: 1.15 }, color: "#4a7c59",
+    layout: { startShelves: 4, maxShelves: 16, expansions: ["backRoom","secondFloor","outdoorPatio"],
+      floor: ["#c8b888","#bca878","#c0ac80"], walls: "#5a6e3a", wallInner: "#7a8e5a", accent: "#4a7c59",
+      shape: { w: 660, h: 540, cornerR: 0, insetL: 0, insetR: 0 } } },
+  city: { name: "Downtown Metro District", difficulty: "Easy", icon: "🏙️", desc: "Small cozy shop, but big expansion potential.", startingCash: 12000, monthlyRent: 3500, dailyTrafficBase: [50, 85], genreBonus: { fiction: 1.15, nonfiction: 1.2, mystery: 1.1 }, color: "#5a6e8a",
+    layout: { startShelves: 3, maxShelves: 14, expansions: ["backRoom","secondFloor","outdoorPatio"],
+      floor: ["#b8a090","#a89080","#b09488"], walls: "#4a4a5a", wallInner: "#6a6a7a", accent: "#5a6e8a",
+      shape: { w: 560, h: 500, cornerR: 20, insetL: 50, insetR: 50 } } },
+  airport: { name: "Hartfield International Terminal", difficulty: "Hard", icon: "✈️", desc: "Tiny kiosk. Cramped, limited expansion.", startingCash: 10000, monthlyRent: 4000, dailyTrafficBase: [30, 55], genreBonus: { mystery: 1.3, romance: 1.25, fiction: 1.15 }, color: "#7a5a8a",
+    layout: { startShelves: 2, maxShelves: 7, expansions: ["backRoom"],
+      floor: ["#c0c0c8","#b0b0b8","#b8b8c0"], walls: "#5a5a6a", wallInner: "#7a7a8a", accent: "#7a5a8a",
+      shape: { w: 480, h: 380, cornerR: 30, insetL: 90, insetR: 90 } } },
+  rural: { name: "Willowbrook Village", difficulty: "Hardest", icon: "🌾", desc: "Small cottage shop. Very limited expansion.", startingCash: 8000, monthlyRent: 600, dailyTrafficBase: [8, 22], genreBonus: { children: 1.3, romance: 1.2, fiction: 1.15 }, color: "#8a6e4a",
+    layout: { startShelves: 3, maxShelves: 8, expansions: ["backRoom","outdoorPatio"],
+      floor: ["#d4b07a","#c8a46e","#d0a870"], walls: "#5c3a1e", wallInner: "#7a4a2a", accent: "#8a6e4a",
+      shape: { w: 520, h: 460, cornerR: 40, insetL: 70, insetR: 70 } } },
+};
+
+const GENRES = {
+  fiction: { name: "Fiction", emoji: "📖", cost: 5, basePrice: 12 },
+  nonfiction: { name: "Non-Fiction", emoji: "📚", cost: 7, basePrice: 15 },
+  children: { name: "Children's", emoji: "🧸", cost: 3, basePrice: 8 },
+  mystery: { name: "Mystery", emoji: "🔍", cost: 5, basePrice: 12 },
+  scifi: { name: "Sci-Fi/Fantasy", emoji: "🚀", cost: 5, basePrice: 13 },
+  romance: { name: "Romance", emoji: "💕", cost: 4, basePrice: 10 },
+  academic: { name: "Academic", emoji: "🎓", cost: 12, basePrice: 25 },
+};
+
+const EXPANSIONS = {
+  backRoom: { name: "Back Storage Room", emoji: "📦", cost: 6000, desc: "Extra inventory capacity. +30% max stock, +8 max customers.", rentIncrease: 300, trafficMult: 1.12, maxCustBonus: 8, stockMult: 1.3, coziness: 2 },
+  secondFloor: { name: "Second Floor", emoji: "🏗️", cost: 18000, desc: "Double your shelf space! +50% stock, +15 customers, big rent hike.", rentIncrease: 1200, trafficMult: 1.3, maxCustBonus: 15, stockMult: 1.5, coziness: 5, requires: "backRoom" },
+  outdoorPatio: { name: "Outdoor Patio", emoji: "🌿", cost: 10000, desc: "Sidewalk seating area. +20% traffic, great for events.", rentIncrease: 500, trafficMult: 1.2, maxCustBonus: 6, stockMult: 1.0, coziness: 12 },
+};
+
+const UPGRADES = {
+  readingNook: { name: "Reading Nook", emoji: "🛋️", cost: 1500, desc: "+10% dwell", tm: 1.0, rm: 1.1, coz: 10, tier2: { name: "Luxury Lounge", cost: 4500, desc: "+20% dwell, +5% revenue", tm: 1.0, rm: 1.2, coz: 18 }, variants: {
+    velvet: { name: "Velvet Settee", colors: { main: "#8b4557", light: "#a05a6a", dark: "#6b3040" } },
+    leather: { name: "Leather Armchair", colors: { main: "#6b4226", light: "#8b5a36", dark: "#4a2e1a" } },
+    beanbag: { name: "Giant Beanbag", colors: { main: "#5b8a72", light: "#7aaa92", dark: "#3a6a52" } },
+    hammock: { name: "Book Hammock", colors: { main: "#c4956a", light: "#dab48a", dark: "#a4754a" } },
+  }},
+  cafe: { name: "Café Corner", emoji: "☕", cost: 5000, desc: "+15% revenue", tm: 1.05, rm: 1.15, coz: 15, tier2: { name: "Full Café & Bakery", cost: 12000, desc: "+25% revenue, +10% traffic", tm: 1.1, rm: 1.25, coz: 22 }, variants: {
+    espresso: { name: "Espresso Bar", colors: { main: "#4a3728", light: "#6a5748", dark: "#2a1a0e" } },
+    teahouse: { name: "Tea Station", colors: { main: "#6a8a5a", light: "#8aaa7a", dark: "#4a6a3a" } },
+    pastry: { name: "Pastry Counter", colors: { main: "#d4a870", light: "#e4c890", dark: "#b48850" } },
+    matcha: { name: "Matcha Bar", colors: { main: "#5a8a6a", light: "#7aaa8a", dark: "#3a6a4a" } },
+  }},
+  childrenArea: { name: "Children's Area", emoji: "🎨", cost: 2500, desc: "+20% kid books", tm: 1.05, rm: 1.0, coz: 8, tier2: { name: "Enchanted Playroom", cost: 7000, desc: "+40% kid books, +8% traffic", tm: 1.08, rm: 1.0, coz: 14 }, variants: {
+    treehouse: { name: "Mini Treehouse", colors: { main: "#5a8a3a", light: "#7aaa5a", dark: "#3a6a2a" } },
+    castle: { name: "Reading Castle", colors: { main: "#8a6ab0", light: "#aa8ad0", dark: "#6a4a90" } },
+    submarine: { name: "Story Submarine", colors: { main: "#4a7a9a", light: "#6a9aba", dark: "#2a5a7a" } },
+    cloud: { name: "Cloud Corner", colors: { main: "#a0b8d0", light: "#c0d8f0", dark: "#8098b0" } },
+  }},
+  comfySeating: { name: "Comfy Seating", emoji: "🪑", cost: 800, desc: "+5% satisfaction", tm: 1.02, rm: 1.05, coz: 5, tier2: { name: "Designer Chairs", cost: 3000, desc: "+10% satisfaction, +5% traffic", tm: 1.05, rm: 1.1, coz: 10 }, variants: null },
+  lighting: { name: "Warm Lighting", emoji: "💡", cost: 1200, desc: "+8% ambiance", tm: 1.03, rm: 1.05, coz: 8, tier2: { name: "Chandelier & Fairy Lights", cost: 4000, desc: "+15% ambiance, +8% revenue", tm: 1.06, rm: 1.08, coz: 15 }, variants: null },
+  windowDisplay: { name: "Window Display", emoji: "🪟", cost: 1800, desc: "+10% foot traffic", tm: 1.1, rm: 1.0, coz: 6, tier2: { name: "Animated Window Scene", cost: 5000, desc: "+20% foot traffic, +5% charm", tm: 1.2, rm: 1.05, coz: 10 }, variants: null },
+  catResident: { name: "Shop Cat", emoji: "🐱", cost: 500, desc: "+12% charm", tm: 1.08, rm: 1.04, coz: 15, tier2: { name: "Cat Palace & Webcam", cost: 2500, desc: "+20% charm, +10% traffic", tm: 1.1, rm: 1.08, coz: 22 },
+    variants: null,
+    catColors: {
+      orange: { name: "Orange Tabby", body: "#e8a040", dark: "#c07828", ear: "#d09038", nose: "#e8907a" },
+      black: { name: "Midnight Black", body: "#2a2a2a", dark: "#1a1a1a", ear: "#3a3a3a", nose: "#e8907a" },
+      white: { name: "Snow White", body: "#f0ece8", dark: "#d0c8c0", ear: "#e0d8d0", nose: "#e8a0a0" },
+      gray: { name: "Silver Gray", body: "#8a8a9a", dark: "#6a6a7a", ear: "#7a7a8a", nose: "#d0908a" },
+      ginger: { name: "Ginger", body: "#c87830", dark: "#a06020", ear: "#b86828", nose: "#e8907a" },
+      cream: { name: "Cream", body: "#f0e0c8", dark: "#d0b898", ear: "#e0c8a8", nose: "#e8a090" },
+      chocolate: { name: "Chocolate", body: "#5c3a22", dark: "#3a2210", ear: "#4a2a18", nose: "#c07060" },
+      bluegray: { name: "Russian Blue", body: "#6a7a8a", dark: "#4a5a6a", ear: "#5a6a7a", nose: "#b08080" },
+    },
+  },
+  musicSystem: { name: "Lo-Fi Speakers", emoji: "🎵", cost: 1000, desc: "+6% atmosphere", tm: 1.02, rm: 1.06, coz: 7, tier2: { name: "Vinyl Corner & Hi-Fi", cost: 3500, desc: "+12% atmosphere, +5% traffic", tm: 1.05, rm: 1.12, coz: 14 }, variants: null },
+  boardGames: { name: "Board Game Shelf", emoji: "🎲", cost: 1200, desc: "+8% linger time, +4 coziness", tm: 1.0, rm: 1.08, coz: 4, tier2: { name: "Game Night Lounge", cost: 4000, desc: "+15% linger, +10 coziness, +5% traffic", tm: 1.05, rm: 1.15, coz: 10 }, variants: null },
+  bookmarks: { name: "Bookmark Display", emoji: "🔖", cost: 400, desc: "+3% revenue per sale", tm: 1.0, rm: 1.03, coz: 2, tier2: { name: "Artisan Bookmark Collection", cost: 1500, desc: "+8% revenue, +3 coziness", tm: 1.0, rm: 1.08, coz: 5 }, variants: null },
+  puzzles: { name: "Puzzle Corner", emoji: "🧩", cost: 900, desc: "+5% revenue, +3 coziness", tm: 1.0, rm: 1.05, coz: 3, tier2: { name: "Puzzle Emporium", cost: 3000, desc: "+10% revenue, +8 coziness, +3% traffic", tm: 1.03, rm: 1.1, coz: 8 }, variants: null },
+};
+
+const EVENTS = {
+  authorSigning: { name: "Author Signing", emoji: "✍️", cost: 800, trafficPct: 0.40, desc: "+40% traffic · 2× rare book drop rate", repBonus: 0.2, rareDropMult: 2.0, revenueMult: 1.0, cozBonus: 0 },
+  bookClub: { name: "Book Club Night", emoji: "📖", cost: 200, trafficPct: 0.15, desc: "+15% traffic · +20% revenue (linger time)", repBonus: 0.1, rareDropMult: 1.0, revenueMult: 1.2, cozBonus: 0 },
+  storyTime: { name: "Story Time", emoji: "📕", cost: 100, trafficPct: -0.05, desc: "−5% traffic · +0.3 rep · +5 coziness", repBonus: 0.3, rareDropMult: 1.0, revenueMult: 1.0, cozBonus: 5 },
+  poetryNight: { name: "Poetry Open Mic", emoji: "🎤", cost: 150, trafficPct: 0.05, desc: "+5% traffic · +0.25 rep · +3 coziness", repBonus: 0.25, rareDropMult: 1.0, revenueMult: 1.0, cozBonus: 3 },
+};
+
+const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DAY_DURATION = 120;
+const rq = () => QUOTES[Math.floor(Math.random()*QUOTES.length)];
+const rd = (regulars) => {
+  if (regulars && regulars.length > 0 && Math.random() < 0.3) {
+    const reg = regulars[Math.floor(Math.random() * regulars.length)];
+    const fn = REG_DIALOGUES[Math.floor(Math.random() * REG_DIALOGUES.length)];
+    return fn(reg.name, reg.favGenre);
+  }
+  return CLICK_DIALOGUES[Math.floor(Math.random() * CLICK_DIALOGUES.length)];
+};
+const ri = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+const sr = (s) => { const x=Math.sin(s*9301+49297)*49421; return x-Math.floor(x); };
+const pick = (arr) => arr[Math.floor(Math.random()*arr.length)];
+
+const STAFF_ROLES = {
+  cashiers: { name: "Cashier", emoji: "🧑‍💼", wage: 80, desc: "Required to open. More = faster checkout.", req: null, max: 4 },
+  shelvers: { name: "Shelver", emoji: "📚", wage: 60, desc: "Auto-restocks 8 books/day from surplus. Boosts sales 5%.", req: null, max: 4 },
+  baristas: { name: "Barista", emoji: "☕", wage: 90, desc: "Required to run the Café. Unlocks café revenue bonus.", req: "cafe", reqLabel: "Café Corner upgrade", max: 2 },
+  promoters: { name: "PR Promoter", emoji: "📣", wage: 200, desc: "+25% foot traffic each. Expensive but powerful.", req: null, max: 2 },
+  scouts: { name: "Author Scout", emoji: "🔎", wage: 120, desc: "Finds new authors. Auto-schedules a signing every 5 days.", req: null, max: 2 },
+  editors: { name: "Editor", emoji: "✏️", wage: 150, desc: "Publishes exclusive titles (+$3 premium per sale). Requires fully expanded store.", req: "maxLevel", reqLabel: "All expansions built", max: 1 },
+  managers: { name: "Store Manager", emoji: "👔", wage: 2500, desc: "Automates inventory purchasing. Keeps all genres stocked to capacity each day.", req: null, max: 1 },
+};
+
+const REG_FIRST = ["Margaret","James","Priya","Carlos","Yuki","Beatrice","Oliver","Fatima","Theo","Saoirse","Marcus","Ingrid","Devon","Amara","Winston","Lila","Kenji","Rosa","Edmund","Zara","Felix","Nadia","Hank","Celeste","Ravi","Dorothy","Jasper","Mei","Gus","Valentina"];
+const REG_TRAITS = [
+  "Always brings their dog","Reads standing up","Falls asleep in the nook","Buys two copies of everything",
+  "Only reads hardcovers","Photographs every spine","Stays until closing","Arrives right at opening",
+  "Recommends books to strangers","Brings homemade cookies","Takes notes in margins","Reads the last page first",
+  "Has a tote bag collection","Asks for gift wrapping","Only pays in exact change","Whistles while browsing",
+  "Always sits in the same chair","Brings their own bookmark","Smells every book","Stacks books by color",
+  "Talks to the cat","Writes reviews on their phone","Always buys a coffee too","Carries a reading journal",
+  "Wears reading glasses on a chain","Dogears pages (sorry)","Leaves sticky notes of praise","Always asks what's new",
+  "Brings their grandkids","Knows every author's birthday",
+];
+const REG_DIALOGUES = [
+  (n,g) => `${n}: "You always have the best ${GENRES[g]?.name || "books"}!"`,
+  (n,g) => `${n}: "I tell everyone about this place."`,
+  (n,g) => `${n}: "Ah, you restocked ${GENRES[g]?.name || "my section"}! Wonderful."`,
+  (n,g) => `${n}: "This is my favorite store in the world."`,
+  (n,g) => `${n}: "I brought a friend today. You're welcome."`,
+  (n,g) => `${n}: "Been coming here since day one. Wouldn't miss it."`,
+  (n,g) => `${n}: "Know what I love? You always remember what I like."`,
+  (n,g) => `${n}: "I cleared a whole shelf at home just for your recommendations."`,
+];
+const REG_DISAPPOINTED = [
+  (n,g) => `${n}: "No ${GENRES[g]?.name || "books"} again? I came all this way..."`,
+  (n,g) => `${n}: "I'll check back next week, I guess."`,
+  (n,g) => `${n}: "Starting to wonder if I should try the other bookstore..."`,
+  (n,g) => `${n}: "You used to always have ${GENRES[g]?.name || "what I need"}."`,
+];
+
+const RARE_BOOKS = [
+  { id: "gutenberg_bible", name: "Gutenberg Bible Fragment", year: 1455, rarity: "Legendary", value: 5000, desc: "A single leaf from the first major book printed with movable type.", color: "#8B4513", emoji: "📜" },
+  { id: "first_folio", name: "Shakespeare First Folio Page", year: 1623, rarity: "Legendary", value: 4500, desc: "A surviving page from the first collected edition of Shakespeare's plays.", color: "#2C3E50", emoji: "🎭" },
+  { id: "darwin_origin", name: "On the Origin of Species (1st Ed.)", year: 1859, rarity: "Epic", value: 3200, desc: "Darwin's groundbreaking work that changed biology forever.", color: "#27AE60", emoji: "🌿" },
+  { id: "alice_wonderland", name: "Alice's Adventures in Wonderland (1st Ed.)", year: 1865, rarity: "Epic", value: 2800, desc: "Lewis Carroll's beloved classic in its original printing.", color: "#3498DB", emoji: "🐇" },
+  { id: "great_gatsby", name: "The Great Gatsby (1st Ed.)", year: 1925, rarity: "Epic", value: 2500, desc: "Fitzgerald's masterpiece with the original dust jacket art.", color: "#F1C40F", emoji: "🥂" },
+  { id: "hobbit_first", name: "The Hobbit (1st Ed.)", year: 1937, rarity: "Rare", value: 2000, desc: "Tolkien's first foray into Middle-earth.", color: "#2ECC71", emoji: "🏔️" },
+  { id: "potter_stone", name: "Harry Potter and the Philosopher's Stone (1st Ed.)", year: 1997, rarity: "Rare", value: 2200, desc: "One of only 500 copies in the original Bloomsbury print run.", color: "#9B59B6", emoji: "⚡" },
+  { id: "frankenstein", name: "Frankenstein (1st Ed.)", year: 1818, rarity: "Rare", value: 1900, desc: "Mary Shelley's gothic masterpiece.", color: "#7F8C8D", emoji: "🧟" },
+  { id: "moby_dick", name: "Moby-Dick (1st Ed.)", year: 1851, rarity: "Rare", value: 1700, desc: "Melville's epic. A commercial failure turned literary legend.", color: "#2980B9", emoji: "🐋" },
+  { id: "ulysses", name: "Ulysses (1st Ed.)", year: 1922, rarity: "Epic", value: 2600, desc: "Joyce's revolutionary stream-of-consciousness novel.", color: "#1ABC9C", emoji: "🌊" },
+  { id: "don_quixote", name: "Don Quixote (Early Edition)", year: 1620, rarity: "Legendary", value: 4000, desc: "An early printing of Cervantes' foundational novel.", color: "#D4A017", emoji: "🛡️" },
+  { id: "dracula", name: "Dracula (1st Ed.)", year: 1897, rarity: "Rare", value: 1500, desc: "Bram Stoker's gothic horror novel.", color: "#922B21", emoji: "🧛" },
+  { id: "1984_first", name: "1984 (1st Ed.)", year: 1949, rarity: "Rare", value: 1400, desc: "Orwell's dystopian warning.", color: "#34495E", emoji: "👁️" },
+  { id: "winnie_pooh", name: "Winnie-the-Pooh (1st Ed.)", year: 1926, rarity: "Uncommon", value: 900, desc: "A.A. Milne's classic with original Shepard illustrations.", color: "#F39C12", emoji: "🍯" },
+  { id: "little_prince", name: "The Little Prince (1st Ed.)", year: 1943, rarity: "Uncommon", value: 800, desc: "Saint-Exupéry's philosophical fable.", color: "#5DADE2", emoji: "⭐" },
+  { id: "cat_hat", name: "The Cat in the Hat (1st Ed.)", year: 1957, rarity: "Uncommon", value: 700, desc: "Dr. Seuss changed children's reading forever.", color: "#E74C3C", emoji: "🎩" },
+  { id: "charlotte_web", name: "Charlotte's Web (1st Ed.)", year: 1952, rarity: "Uncommon", value: 750, desc: "E.B. White's heartwarming tale.", color: "#85C1E9", emoji: "🕸️" },
+  { id: "where_wild", name: "Where the Wild Things Are (1st Ed.)", year: 1963, rarity: "Uncommon", value: 850, desc: "Sendak's beloved picture book.", color: "#58D68D", emoji: "👹" },
+  { id: "fahrenheit_451", name: "Fahrenheit 451 (Asbestos Ed.)", year: 1953, rarity: "Epic", value: 2400, desc: "One of 200 copies bound in asbestos.", color: "#E67E22", emoji: "🔥" },
+  { id: "treasure_island", name: "Treasure Island (1st Ed.)", year: 1883, rarity: "Uncommon", value: 950, desc: "Stevenson's adventure classic.", color: "#D4AC0D", emoji: "🏴‍☠️" },
+];
+
+const RARITY_COLORS = { Legendary: "#FFD700", Epic: "#A855F7", Rare: "#3B82F6", Uncommon: "#22C55E" };
+
+function rollRareBook(ownedIds) {
+  const available = RARE_BOOKS.filter(b => !ownedIds.includes(b.id));
+  if (available.length === 0) return null;
+  const roll = Math.random();
+  let pool;
+  if (roll < 0.02) pool = available.filter(b => b.rarity === "Legendary");
+  else if (roll < 0.08) pool = available.filter(b => b.rarity === "Epic");
+  else if (roll < 0.25) pool = available.filter(b => b.rarity === "Rare");
+  else pool = available.filter(b => b.rarity === "Uncommon");
+  if (pool.length === 0) pool = available;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function generateRegular(day, existingCount) {
+  const seed = day * 37 + existingCount * 13 + 7;
+  const gk = Object.keys(GENRES);
+  return {
+    id: "reg_" + day + "_" + existingCount,
+    name: REG_FIRST[seed % REG_FIRST.length],
+    favGenre: gk[seed % gk.length],
+    trait: REG_TRAITS[seed % REG_TRAITS.length],
+    loyalty: 50, lastVisit: day,
+    visitFreq: 3 + (seed % 4),
+    totalSpent: 0, visits: 0,
+    skinIdx: seed % 5, shirtIdx: seed % 10, hairIdx: (seed * 3) % 7,
+  };
+}
+
+function getStaffCost(staff) {
+  let total = 0;
+  Object.keys(staff).forEach(k => { total += (staff[k] || 0) * (STAFF_ROLES[k]?.wage || 0); });
+  return total;
+}
+
+function isMaxLevel(st) {
+  const avail = LOCATIONS[st.location]?.layout?.expansions || [];
+  return avail.every(k => !!st.expansions[k]);
+}
+
+function getStoreSize(st) {
+  let custMax = 12, stockMult = 1.0, trafficMult = 1.0, extraRent = 0;
+  Object.keys(st.expansions || {}).forEach(k => {
+    if (st.expansions[k]) {
+      const e = EXPANSIONS[k];
+      custMax += e.maxCustBonus; stockMult *= e.stockMult;
+      trafficMult *= e.trafficMult; extraRent += e.rentIncrease;
+    }
+  });
+  return { custMax, stockMult, trafficMult, extraRent };
+}
+
+function getUpgradeStats(st) {
+  let tm = 1, rm = 1, coz = 10;
+  Object.keys(st.upgrades).forEach(k => {
+    const val = st.upgrades[k]; if (!val) return;
+    const u = UPGRADES[k];
+    if (k === "cafe" && (st.staff.baristas || 0) === 0) { coz += u.coz; return; }
+    const tier = val.tier || 1;
+    if (tier === 2 && u.tier2) { tm *= u.tier2.tm; rm *= u.tier2.rm; coz += u.tier2.coz; }
+    else { tm *= u.tm; rm *= u.rm; coz += u.coz; }
+  });
+  Object.keys(st.expansions || {}).forEach(k => { if (st.expansions[k]) coz += EXPANSIONS[k].coziness; });
+  return { tm, rm, coz };
+}
+
+function getBuyAmounts(st) {
+  const { stockMult } = getStoreSize(st);
+  if (stockMult >= 1.5) return [10, 25, 50, 100];
+  if (stockMult >= 1.3) return [5, 15, 40, 75];
+  return [5, 10, 25];
+}
+
+function getShelfCapacity(st) {
+  const shelfBooks = (st.shelves || 4) * 15;
+  const baseStorage = 200 + (st.storageUpgrades || 0) * 100;
+  const mult = getStoreSize(st).stockMult;
+  return Math.floor((shelfBooks + baseStorage) * mult);
+}
+
+function getTotalStock(st) {
+  return Object.values(st.inventory).reduce((s, v) => s + v.stock, 0);
+}
+
+function getShelfBrowseBonus(st) {
+  const loc = LOCATIONS[st.location];
+  const minSh = loc.layout.startShelves;
+  const maxSh = loc.layout.maxShelves;
+  const cur = st.shelves || minSh;
+  const pct = Math.max(0, (cur - minSh) / Math.max(1, maxSh - minSh));
+  return { buyChanceMod: pct * 0.12, revenueMult: 1 + pct * 0.25 };
+}
+
+function generateGuestComments(state, count) {
+  const generic = [
+    "Great selection! I'll be back.", "Found exactly what I was looking for.",
+    "The staff was so helpful!", "I could browse here for hours.",
+    "Told all my friends about this place.", "Love supporting local bookshops.",
+    "Perfect rainy day activity.", "My favorite store in town.",
+    "Finally, a bookstore that feels like home.", "I came for one book and left with five. Classic.",
+    "So much better than ordering online.", "I now associate the smell of espresso with good books.",
+    "My kids didn't want to leave!", "This is my happy place. No exaggeration.",
+    "I found a book I've been searching for for years!", "Way better organized than the last time I visited.",
+    "I always discover something new here.", "Left a 5-star review. You deserve it.",
+    "Every time I come I find a hidden gem.", "So peaceful in here. The world disappears.",
+    "I'd live here if I could.", "I spent way too long in here. No regrets.",
+    "My weekend tradition: coffee and a browse here.", "This place has character. Big chains could never.",
+    "Stumbled in by accident. Best accident of the week.", "You've ruined me for all other bookstores.",
+    "This is what the internet can't replicate.",
+  ];
+  const upgrade = [];
+  const u = state.upgrades;
+  if (u.catResident) {
+    const cn = u.catResident.catName || "the cat";
+    upgrade.push(`${cn} rubbed against my leg. Best bookstore ever.`, `I came for books but stayed for ${cn}.`, `${cn} sat on the book I wanted. I bought two instead.`);
+  }
+  if (u.cafe) upgrade.push("The coffee here rivals actual coffee shops.", "Came for a scone, left with six books.");
+  if (u.childrenArea) upgrade.push("Best kids' corner I've ever seen.", "My kids beg to come here every weekend now.");
+  if (u.readingNook) upgrade.push("That reading nook is SO comfortable.", "I fell asleep in the nook. No regrets.");
+  if (u.musicSystem) upgrade.push("Love the background music — sets the mood perfectly.");
+  if (u.lighting) upgrade.push("The lighting is so warm and inviting.");
+  if (u.boardGames) upgrade.push("You have board games too?! This place has everything.");
+  if (state.expansions.outdoorPatio) upgrade.push("The patio is lovely on a day like today!");
+  if (state.expansions.secondFloor) upgrade.push("The second floor has an amazing selection!");
+  const pool = [...generic, ...upgrade, ...upgrade];
+  const result = [];
+  for (let i = 0; i < count; i++) result.push(pick(pool));
+  return [...new Set(result)].slice(0, count);
+}
+
+function initGameState(lid) {
+  const l = LOCATIONS[lid];
+  const inv = {};
+  Object.keys(GENRES).forEach(g => { inv[g] = { stock: 10, price: GENRES[g].basePrice }; });
+  return {
+    location: lid, cash: l.startingCash, day: 1, week: 1, dayOfWeek: 0,
+    staff: { cashiers: 1, shelvers: 0, promoters: 0, baristas: 0, scouts: 0, editors: 0, managers: 0 },
+    inventory: inv, upgrades: {}, expansions: {},
+    todayEvent: null, scheduledEvents: [], storeHours: { open: 9, close: 18 },
+    history: [], dailyReport: null, reputation: 50,
+    totalRevenue: 0, totalExpenses: 0,
+    notifications: [], gameOver: false, dialogueQueue: [],
+    transactions: [], todaySales: { revenue: 0, booksSold: {}, customers: 0 },
+    storeName: "Paper Dreams", shelves: l.layout.startShelves,
+    exclusiveTitles: 0, scoutTimer: 0, storageUpgrades: 0,
+    rareBooks: [], regulars: [],
+  };
+}
+
+// The game reducer is very large — I'll include it in full for correctness
+function gameReducer(st, a) {
+  switch (a.type) {
+    case "BUY_BOOKS": {
+      const c = GENRES[a.genre].cost * a.qty;
+      if (st.cash < c) return st;
+      const cap = getShelfCapacity(st);
+      const curTotal = getTotalStock(st);
+      const canFit = cap - curTotal;
+      const qty = Math.min(a.qty, canFit);
+      if (qty <= 0) return st;
+      const cost = GENRES[a.genre].cost * qty;
+      return { ...st, cash: Math.round(st.cash - cost), inventory: { ...st.inventory, [a.genre]: { ...st.inventory[a.genre], stock: st.inventory[a.genre].stock + qty } } };
+    }
+    case "SET_NAME": return { ...st, storeName: (a.name || "Paper Dreams").slice(0, 30) };
+    case "BUY_SHELF": {
+      const shelfCost = 400 + (st.shelves || 4) * 200;
+      const maxSh = LOCATIONS[st.location]?.layout?.maxShelves || 16;
+      if (st.cash < shelfCost || (st.shelves || 4) >= maxSh) return st;
+      return { ...st, cash: Math.round(st.cash - shelfCost), shelves: (st.shelves || 4) + 1 };
+    }
+    case "BUY_STORAGE": {
+      const lvl = st.storageUpgrades || 0;
+      const storageCost = 800 + lvl * 600;
+      if (st.cash < storageCost || lvl >= 5) return st;
+      return { ...st, cash: Math.round(st.cash - storageCost), storageUpgrades: lvl + 1 };
+    }
+    case "SET_PRICE": return { ...st, inventory: { ...st.inventory, [a.genre]: { ...st.inventory[a.genre], price: Math.max(1, a.price) } } };
+    case "HIRE": {
+      const role = STAFF_ROLES[a.role];
+      if (!role) return st;
+      if ((st.staff[a.role] || 0) >= role.max) return st;
+      if (role.req === "cafe" && !st.upgrades.cafe) return st;
+      if (role.req === "maxLevel" && !isMaxLevel(st)) return st;
+      return { ...st, staff: { ...st.staff, [a.role]: (st.staff[a.role] || 0) + 1 } };
+    }
+    case "FIRE": return (st.staff[a.role] || 0) <= 0 ? st : { ...st, staff: { ...st.staff, [a.role]: st.staff[a.role] - 1 } };
+    case "BUY_UPGRADE": {
+      const u = UPGRADES[a.upgrade];
+      if (!u) return st;
+      const cur = st.upgrades[a.upgrade];
+      if (a.tier2) {
+        if (!cur || cur.tier === 2 || st.cash < u.tier2.cost) return st;
+        return { ...st, cash: Math.round(st.cash - u.tier2.cost), upgrades: { ...st.upgrades, [a.upgrade]: { ...cur, tier: 2 } } };
+      }
+      if (cur) return st;
+      if (st.cash < u.cost) return st;
+      if (a.upgrade === "catResident") {
+        return { ...st, cash: Math.round(st.cash - u.cost), upgrades: { ...st.upgrades, catResident: { variant: a.catColor || "orange", catName: a.catName || "Whiskers", catColor: a.catColor || "orange", tier: 1 } } };
+      }
+      return { ...st, cash: Math.round(st.cash - u.cost), upgrades: { ...st.upgrades, [a.upgrade]: { variant: a.variant || "default", tier: 1 } } };
+    }
+    case "BUY_EXPANSION": {
+      const e = EXPANSIONS[a.expansion];
+      if (!e || st.expansions[a.expansion] || st.cash < e.cost) return st;
+      if (e.requires && !st.expansions[e.requires]) return st;
+      const avail = LOCATIONS[st.location]?.layout?.expansions || [];
+      if (!avail.includes(a.expansion)) return st;
+      return { ...st, cash: Math.round(st.cash - e.cost), expansions: { ...st.expansions, [a.expansion]: true } };
+    }
+    case "SCHEDULE_EVENT": return st.cash < EVENTS[a.event].cost ? st : { ...st, scheduledEvents: [...st.scheduledEvents, a.event] };
+    case "LIVE_SALE": {
+      const g = a.genre;
+      if (!st.inventory[g] || st.inventory[g].stock <= 0) return st;
+      const price = st.inventory[g].price;
+      const rm = getUpgradeStats(st).rm;
+      const brm = getShelfBrowseBonus(st).revenueMult;
+      const earned = Math.round(price * rm * brm);
+      const tx = { id: Date.now() + Math.random(), type: "sale", genre: g, amount: earned, time: a.time };
+      const newBs = { ...st.todaySales.booksSold };
+      newBs[g] = (newBs[g] || 0) + 1;
+      return {
+        ...st, cash: st.cash + earned,
+        inventory: { ...st.inventory, [g]: { ...st.inventory[g], stock: st.inventory[g].stock - 1 } },
+        transactions: [...st.transactions.slice(-50), tx],
+        todaySales: { ...st.todaySales, revenue: st.todaySales.revenue + earned, booksSold: newBs, customers: st.todaySales.customers },
+      };
+    }
+    case "LIVE_BROWSE": {
+      const tx = { id: Date.now() + Math.random(), type: "browse", time: a.time };
+      return { ...st, transactions: [...st.transactions.slice(-50), tx], todaySales: { ...st.todaySales, customers: st.todaySales.customers + 1 } };
+    }
+    case "RESET_DAY_SALES": return { ...st, transactions: [], todaySales: { revenue: 0, booksSold: {}, customers: 0 } };
+    case "ADVANCE_DAY_WITH_REPORT": {
+      if (st.gameOver) return st;
+      const r = a.report;
+      const nc = st.cash;
+      const finalCash = nc - r.costs;
+      const nd = (st.dayOfWeek + 1) % 7;
+      let newInv = { ...st.inventory };
+      var shelverCost = 0;
+      if (st.staff.shelvers > 0) {
+        const restockQty = st.staff.shelvers * 8;
+        const cap = getShelfCapacity(st);
+        let curTotal = getTotalStock({ ...st, inventory: newInv });
+        const gk = Object.keys(GENRES).sort((a2, b2) => GENRES[a2].cost - GENRES[b2].cost);
+        let restocked = 0, rCost = 0;
+        for (let i = 0; i < restockQty && curTotal < cap; i++) {
+          const g = gk[i % gk.length];
+          const cost = GENRES[g].cost;
+          if (finalCash - rCost - cost >= 0) {
+            newInv = { ...newInv, [g]: { ...newInv[g], stock: newInv[g].stock + 1 } };
+            rCost += cost; curTotal++; restocked++;
+          }
+        }
+        if (restocked > 0) r.notifications.push("📚 Shelvers restocked " + restocked + " books ($" + rCost + ")");
+        shelverCost = rCost;
+      }
+      var managerCost = 0;
+      if (st.staff.managers > 0) {
+        const cap = getShelfCapacity(st);
+        let curTotal = getTotalStock({ ...st, inventory: newInv });
+        const gk = Object.keys(GENRES);
+        const genreCount = gk.length;
+        const targetPerGenre = Math.floor((cap - curTotal + Object.values(newInv).reduce((s, v) => s + v.stock, 0)) / genreCount);
+        let bought = 0, mCost = 0;
+        const budget = finalCash - shelverCost - 500;
+        const sorted = [...gk].sort((a2, b2) => newInv[a2].stock - newInv[b2].stock);
+        for (const g of sorted) {
+          const need = Math.max(0, targetPerGenre - newInv[g].stock);
+          for (let j = 0; j < need && curTotal < cap; j++) {
+            const cost = GENRES[g].cost;
+            if (mCost + cost > budget) break;
+            newInv = { ...newInv, [g]: { ...newInv[g], stock: newInv[g].stock + 1 } };
+            mCost += cost; curTotal++; bought++;
+          }
+        }
+        if (bought > 0) r.notifications.push("👔 Manager purchased " + bought + " books ($" + mCost + ")");
+        managerCost = mCost;
+      }
+      let newEvents = st.scheduledEvents.slice(1);
+      let newScoutTimer = (st.scoutTimer || 0) + 1;
+      if (st.staff.scouts > 0 && newScoutTimer >= 5) {
+        newEvents = [...newEvents, "authorSigning"];
+        r.notifications.push("🔎 Scout found a new author for a signing!");
+        newScoutTimer = 0;
+      }
+      let editorBonus = 0;
+      if (st.staff.editors > 0) {
+        const totalSold = Object.values(r.booksSold).reduce((s, v) => s + v, 0);
+        editorBonus = totalSold * 3 * st.staff.editors;
+        if (editorBonus > 0) r.notifications.push("✏️ Exclusive editions earned +$" + editorBonus + " premium");
+      }
+      const adjustedCash = finalCash - (shelverCost || 0) - (managerCost || 0) + editorBonus;
+      let newRareBooks = [...(st.rareBooks || [])];
+      if (a.preRolledDrop) {
+        const drop = a.preRolledDrop;
+        const ownedIds = newRareBooks.map(b => b.id);
+        if (!ownedIds.includes(drop.id)) {
+          newRareBooks.push({ ...drop, dayFound: st.day + 1 });
+          r.notifications.push(`📜 A customer donated a rare book: ${drop.name} (${drop.rarity})! Worth $${drop.value}!`);
+        }
+      }
+      let newRegulars = [...(st.regulars || [])];
+      const nextDay = st.day + 1;
+      let regularRevenue = 0;
+      newRegulars = newRegulars.map(reg => {
+        const daysSince = nextDay - reg.lastVisit;
+        if (daysSince < reg.visitFreq) return reg;
+        const genre = reg.favGenre;
+        const hasStock = newInv[genre] && newInv[genre].stock > 0;
+        if (hasStock) {
+          const price = newInv[genre].price;
+          const brm = getShelfBrowseBonus(st).revenueMult;
+          const earned = Math.round(price * getUpgradeStats(st).rm * brm);
+          newInv = { ...newInv, [genre]: { ...newInv[genre], stock: newInv[genre].stock - 1 } };
+          regularRevenue += earned;
+          return { ...reg, loyalty: Math.min(100, reg.loyalty + ri(3, 8)), lastVisit: nextDay, visits: reg.visits + 1, totalSpent: reg.totalSpent + earned };
+        } else {
+          r.notifications.push(REG_DISAPPOINTED[nextDay % REG_DISAPPOINTED.length](reg.name, genre));
+          return { ...reg, loyalty: Math.max(0, reg.loyalty - ri(8, 15)), lastVisit: nextDay, visits: reg.visits + 1 };
+        }
+      });
+      const lost = newRegulars.filter(reg => reg.loyalty <= 0);
+      if (lost.length > 0) lost.forEach(reg => r.notifications.push(`😢 ${reg.name} stopped coming.`));
+      newRegulars = newRegulars.filter(reg => reg.loyalty > 0);
+      if (newRegulars.length < 12 && st.reputation > 35) {
+        const spawnChance = 0.08 + (st.reputation / 600);
+        if (Math.random() < spawnChance) {
+          const newReg = generateRegular(nextDay, newRegulars.length);
+          if (!newRegulars.some(r2 => r2.name === newReg.name)) {
+            newRegulars.push(newReg);
+            r.notifications.push(`⭐ ${newReg.name} became a regular! Loves ${GENRES[newReg.favGenre]?.name || "books"}.`);
+          }
+        }
+      }
+      const loyalCount = newRegulars.filter(reg => reg.loyalty >= 60).length;
+      if (regularRevenue > 0) r.notifications.push(`🤝 Regulars spent $${regularRevenue} today`);
+      const finalAdjustedCash = adjustedCash + regularRevenue;
+      return {
+        ...st, cash: Math.round(finalAdjustedCash), day: st.day + 1,
+        week: nd === 0 ? st.week + 1 : st.week, dayOfWeek: nd,
+        inventory: newInv, dailyReport: r,
+        todayEvent: newEvents.length > 0 ? null : (st.scheduledEvents[0] || null),
+        scheduledEvents: newEvents,
+        totalRevenue: st.totalRevenue + r.revenue + editorBonus + regularRevenue,
+        totalExpenses: st.totalExpenses + r.costs + (shelverCost || 0) + (managerCost || 0),
+        reputation: Math.min(100, Math.max(0, st.reputation + (r.repChange || 0) + loyalCount * 0.02)),
+        history: [...st.history.slice(-29), { day: st.day, profit: r.profit + editorBonus + regularRevenue - (shelverCost || 0) }],
+        gameOver: finalAdjustedCash < -500, notifications: r.notifications, dialogueQueue: [],
+        transactions: [], todaySales: { revenue: 0, booksSold: {}, customers: 0 },
+        scoutTimer: newScoutTimer,
+        exclusiveTitles: (st.exclusiveTitles || 0) + (editorBonus > 0 ? 1 : 0),
+        rareBooks: newRareBooks, regulars: newRegulars,
+      };
+    }
+    case "SET_HOURS": return { ...st, storeHours: a.hours };
+    case "DISMISS_DIALOGUE": return { ...st, dialogueQueue: st.dialogueQueue.slice(1) };
+    default: return st;
+  }
+}
+
+// ═══════════════════════════════════════════
+// CANVAS RENDERER (simplified — same logic, compacted)
+// ═══════════════════════════════════════════
+const CW = 660, CH = 540;
+const BC = ["#c0392b","#2980b9","#27ae60","#8e44ad","#d4a017","#e67e22","#1abc9c","#e74c3c","#3498db","#f39c12","#9b59b6","#16a085","#d35400","#34495e"];
+const SKIN_C = ["#f0c8a0","#d4a878","#c49060","#a07050","#805838"];
+const SHIRT_C = ["#e74c3c","#3498db","#2ecc71","#f39c12","#9b59b6","#1abc9c","#e67e22","#e84393","#6c5ce7","#00b894"];
+const HAIR_C = ["#2a1a0a","#5c3a1e","#8b6b4a","#c87830","#1a1a2a","#daa520","#8a4a2a"];
+const WT = 24;
+
+function rrect(c,x,y,w,h,r,f,s){c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);c.closePath();if(f){c.fillStyle=f;c.fill();}if(s){c.strokeStyle=s;c.lineWidth=1.5;c.stroke();}}
+function ell(c,cx,cy,rx,ry,f){c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.fillStyle=f;c.fill();}
+function circ(c,cx,cy,r,f){c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fillStyle=f;c.fill();}
+function shd(c,b,col){c.shadowBlur=b;c.shadowColor=col||"rgba(0,0,0,0.18)";c.shadowOffsetX=1;c.shadowOffsetY=2;}
+function nshd(c){c.shadowBlur=0;c.shadowColor="transparent";c.shadowOffsetX=0;c.shadowOffsetY=0;}
+
+function drawShelfH(c,x,y,w,h,seed){shd(c,4);rrect(c,x,y,w,h,3,"#5c3018");nshd(c);rrect(c,x+1,y+1,w-2,h-2,2,"#7a4a2a");const bw=4,g=1.5,cnt=Math.floor((w-6)/(bw+g));for(let i=0;i<cnt;i++){const bx=x+3+i*(bw+g),bh=4+Math.floor(sr(seed+i)*6);rrect(c,bx,y+3,bw,bh,1.5,BC[Math.floor(sr(seed+i)*BC.length)]);}}
+function drawShelfV(c,x,y,w,h,seed){shd(c,4);rrect(c,x,y,w,h,3,"#5c3018");nshd(c);rrect(c,x+1,y+1,w-2,h-2,2,"#7a4a2a");const bh2=4,g=1.5,cnt=Math.floor((h-6)/(bh2+g));for(let i=0;i<cnt;i++){const by=y+3+i*(bh2+g),bw2=4+Math.floor(sr(seed+i+50)*6);rrect(c,x+3,by,bw2,bh2,1.5,BC[Math.floor(sr(seed+i)*BC.length)]);}}
+
+function drawTopDown(ctx, state, custs) {
+  if (!ctx || !state) return;
+  const W = CW, H = CH;
+  const loc = LOCATIONS[state.location];
+  const ly = loc.layout;
+  const isOpen = state.staff.cashiers > 0 && state.storeHours.close > state.storeHours.open;
+  const shelves = state.shelves || ly.startShelves;
+  const sh = ly.shape;
+  const sW = sh.w, sH = sh.h, sR = sh.cornerR;
+  const oX = (W - sW) / 2, oY = (H - sH) / 2;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = state.location === "airport" ? "#888898" : state.location === "city" ? "#808088" : "#a0b0a0";
+  ctx.fillRect(0, 0, W, H);
+
+  // Floor
+  ctx.save();
+  ctx.beginPath(); rrect(ctx, oX, oY, sW, sH, sR, null); ctx.clip();
+  const fg = ctx.createLinearGradient(oX, oY, oX + sW, oY + sH);
+  fg.addColorStop(0, ly.floor[0]); fg.addColorStop(0.5, ly.floor[1]); fg.addColorStop(1, ly.floor[2]);
+  ctx.fillStyle = fg; ctx.fillRect(oX, oY, sW, sH);
+  ctx.strokeStyle = "rgba(139,109,80,0.12)"; ctx.lineWidth = 1;
+  for (let py = oY; py < oY + sH; py += 12) { ctx.beginPath(); ctx.moveTo(oX, py); ctx.lineTo(oX + sW, py); ctx.stroke(); }
+  ctx.restore();
+
+  // Walls
+  ctx.lineWidth = WT; ctx.strokeStyle = ly.walls;
+  ctx.beginPath();
+  if (sR > 0) { ctx.moveTo(oX+sR,oY);ctx.lineTo(oX+sW-sR,oY);ctx.quadraticCurveTo(oX+sW,oY,oX+sW,oY+sR);ctx.lineTo(oX+sW,oY+sH-sR);ctx.quadraticCurveTo(oX+sW,oY+sH,oX+sW-sR,oY+sH);ctx.lineTo(oX+sR,oY+sH);ctx.quadraticCurveTo(oX,oY+sH,oX,oY+sH-sR);ctx.lineTo(oX,oY+sR);ctx.quadraticCurveTo(oX,oY,oX+sR,oY); }
+  else { ctx.rect(oX, oY, sW, sH); }
+  ctx.stroke();
+  ctx.lineWidth = WT - 6; ctx.strokeStyle = ly.wallInner; ctx.stroke();
+
+  // Door
+  const dw = 60, dx = oX + sW / 2 - dw / 2;
+  const doorY = oY + sH - WT / 2;
+  ctx.fillStyle = ly.floor[1]; ctx.fillRect(dx, doorY - WT / 2, dw, WT);
+  rrect(ctx, dx, doorY - WT / 2, dw, WT, 4, "#3a3018");
+  rrect(ctx, dx + 4, doorY - WT / 2 + 3, dw - 8, WT - 4, 6, ly.accent);
+  rrect(ctx, dx + 20, doorY - WT / 2 + 8, 20, 10, 5, isOpen ? "#27ae60" : "#c0392b");
+  ctx.fillStyle = "#fff"; ctx.font = "bold 7px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText(isOpen ? "OPEN" : "CLOSED", dx + 30, doorY - WT / 2 + 16); ctx.textAlign = "start";
+
+  // Banner
+  const storeName = state.storeName || "Paper Dreams";
+  const bannerW = Math.max(180, storeName.length * 13 + 50), bannerH = 28;
+  const bannerX = W / 2 - bannerW / 2, bannerY = Math.max(4, oY - bannerH - 6);
+  shd(ctx, 6); rrect(ctx, bannerX, bannerY, bannerW, bannerH, 8, "#3e2723"); nshd(ctx);
+  rrect(ctx, bannerX + 3, bannerY + 3, bannerW - 6, bannerH - 6, 6, "#5c3a1e");
+  ctx.fillStyle = "#fdf6e3"; ctx.font = "bold 16px 'Georgia', serif"; ctx.textAlign = "center";
+  ctx.fillText(storeName, W / 2, bannerY + bannerH / 2 + 5); ctx.textAlign = "start";
+
+  // Interior
+  const iX = oX + WT + 2, iY = oY + WT + 2, iW = sW - WT * 2 - 4, iH = sH - WT * 2 - 4;
+  const ix = (pct) => iX + iW * pct, iy = (pct) => iY + iH * pct;
+
+  // Shelves
+  const shelfSlots = [];
+  shelfSlots.push(
+    { type: "H", x: iX + 4, y: iY + 2, w: iW * 0.16, h: 16 },
+    { type: "V", x: iX, y: iy(0.08), w: 16, h: iH * 0.22 },
+    { type: "V", x: iX, y: iy(0.36), w: 16, h: iH * 0.22 },
+    { type: "V", x: iX + iW - 16, y: iy(0.25), w: 16, h: iH * 0.22 },
+    { type: "H", x: ix(0.14), y: iy(0.2), w: iW * 0.2, h: 14 },
+    { type: "H", x: ix(0.14), y: iy(0.34), w: iW * 0.2, h: 14 },
+    { type: "H", x: ix(0.14), y: iy(0.48), w: iW * 0.2, h: 14 },
+    { type: "H", x: ix(0.42), y: iy(0.2), w: iW * 0.2, h: 14 },
+    { type: "H", x: ix(0.42), y: iy(0.34), w: iW * 0.2, h: 14 },
+    { type: "H", x: ix(0.42), y: iy(0.48), w: iW * 0.2, h: 14 },
+    { type: "V", x: ix(0.37), y: iy(0.2), w: 14, h: iH * 0.2 },
+    { type: "H", x: ix(0.14), y: iy(0.62), w: iW * 0.2, h: 14 },
+    { type: "H", x: ix(0.42), y: iy(0.62), w: iW * 0.2, h: 14 },
+    { type: "V", x: iX + iW - 16, y: iy(0.54), w: 16, h: iH * 0.2 },
+    { type: "H", x: ix(0.22), y: iY + 2, w: iW * 0.14, h: 16 },
+    { type: "V", x: ix(0.37), y: iy(0.42), w: 14, h: iH * 0.16 },
+  );
+  const shelvesToDraw = Math.min(shelves, shelfSlots.length);
+  for (let i = 0; i < shelvesToDraw; i++) {
+    const sl = shelfSlots[i];
+    if (sl.type === "H") drawShelfH(ctx, sl.x, sl.y, sl.w, sl.h, i * 20 + 10);
+    else drawShelfV(ctx, sl.x, sl.y, sl.w, sl.h, i * 20 + 50);
+  }
+
+  // Counter
+  const cx2 = ix(0.72), cy2 = iY + 34;
+  shd(ctx,6);rrect(ctx,cx2,cy2,iW*0.18,28,6,"#9c6b3c");nshd(ctx);
+  rrect(ctx,cx2+iW*0.06,cy2+6,24,16,4,"#2a2a2a");rrect(ctx,cx2+iW*0.06+3,cy2+8,18,8,3,"#4ade80");
+
+  // Plants
+  [[iX+4,iY+2],[iX+iW-14,iY+2]].forEach(([px2,py])=>{shd(ctx,3);rrect(ctx,px2,py+6,12,9,3,"#b86b4a");nshd(ctx);circ(ctx,px2+6,py+3,6,"#3a8a4a");});
+
+  // Cat
+  if (state.upgrades.catResident) {
+    const catData = state.upgrades.catResident;
+    const cc = UPGRADES.catResident.catColors[catData.catColor || "orange"] || UPGRADES.catResident.catColors.orange;
+    const catX = cx2 + iW * 0.02, catY = cy2 + 10;
+    ell(ctx, catX, catY + 2, 13, 16, cc.body);
+    ell(ctx, catX, catY - 14, 12, 10, cc.body);
+    circ(ctx, catX - 4, catY - 14.5, 2.5, "#5a8a5a");
+    circ(ctx, catX + 4, catY - 14.5, 2.5, "#5a8a5a");
+    circ(ctx, catX - 4, catY - 14.5, 1.5, "#1a1a1a");
+    circ(ctx, catX + 4, catY - 14.5, 1.5, "#1a1a1a");
+    ctx.fillStyle = cc.ear;
+    ctx.beginPath(); ctx.moveTo(catX-11,catY-20); ctx.lineTo(catX-4,catY-24); ctx.lineTo(catX-5,catY-16); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(catX+11,catY-20); ctx.lineTo(catX+4,catY-24); ctx.lineTo(catX+5,catY-16); ctx.fill();
+    ctx.fillStyle = cc.nose;
+    ctx.beginPath(); ctx.moveTo(catX-1.5,catY-11); ctx.lineTo(catX+1.5,catY-11); ctx.lineTo(catX,catY-9.5); ctx.fill();
+    const tw = Math.sin(Date.now()/400)*10;
+    ctx.strokeStyle = cc.dark; ctx.lineWidth = 4; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(catX+10,catY+10); ctx.bezierCurveTo(catX+18+tw,catY+6,catX+22,catY-4+tw*0.3,catX+26+tw*0.5,catY-8); ctx.stroke(); ctx.lineCap="butt";
+    const catNameStr = catData.catName || "Kitty";
+    const nameW = Math.max(24, catNameStr.length * 5 + 10);
+    rrect(ctx, catX-nameW/2, catY+20, nameW, 10, 4, "rgba(62,39,35,0.7)");
+    ctx.fillStyle="#fdf6e3"; ctx.font="bold 7px sans-serif"; ctx.textAlign="center";
+    ctx.fillText(catNameStr, catX, catY+28); ctx.textAlign="start";
+  }
+
+  // Staff
+  const drawStaff=(sx,sy,sc2,hc)=>{ell(ctx,sx,sy+6,7,10,sc2);circ(ctx,sx,sy-6,7,hc);circ(ctx,sx,sy-5,4.5,SKIN_C[0]);circ(ctx,sx-1.5,sy-6,0.8,"#333");circ(ctx,sx+1.5,sy-6,0.8,"#333");};
+  if(state.staff.cashiers>0)drawStaff(cx2+iW*0.04,cy2+10,"#4a7c59","#5c3a1e");
+  if(state.staff.shelvers>0)drawStaff(ix(0.22),iy(0.22),"#8e6e5a","#3b2510");
+
+  // Customers
+  (custs||[]).forEach(cu=>{
+    if(!cu||typeof cu.x!=="number"||typeof cu.y!=="number")return;
+    if(cu.x<10||cu.x>210||cu.y<10||cu.y>175)return;
+    const sk=SKIN_C[cu.seed%SKIN_C.length],shi=SHIRT_C[cu.seed%SHIRT_C.length],hr=HAIR_C[(cu.seed*3)%HAIR_C.length];
+    const rx=oX+(cu.x/220)*sW,ry=oY+(cu.y/180)*sH;
+    ell(ctx,rx,ry+5,7,10,shi);circ(ctx,rx,ry-6,7,hr);circ(ctx,rx,ry-5,4.5,sk);circ(ctx,rx-1.5,ry-5.5,0.7,"#333");circ(ctx,rx+1.5,ry-5.5,0.7,"#333");
+    if(cu.state==="browsing")rrect(ctx,rx+6,ry,5,8,1.5,BC[(cu.seed*7)%BC.length]);
+  });
+
+  // Event banner
+  if(state.todayEvent&&EVENTS[state.todayEvent]){shd(ctx,4);rrect(ctx,dx-30,doorY-50,dw+60,16,8,"#e74c3c");nshd(ctx);ctx.fillStyle="#fff";ctx.font="bold 9px sans-serif";ctx.textAlign="center";ctx.fillText(EVENTS[state.todayEvent].name.toUpperCase(),W/2,doorY-41);ctx.textAlign="start";}
+}
+
+function useCustomerAnim(state, storeOpen) {
+  const ref = useRef([]);
+  const sz = getStoreSize(state);
+  const liveCount = state.todaySales ? state.todaySales.customers : 0;
+  const target = storeOpen ? Math.min(Math.max(3, Math.ceil(liveCount * 0.35)), sz.custMax) : 0;
+  useEffect(() => {
+    if (!storeOpen) { ref.current.length = 0; return; }
+    const doorX = 110, doorY = 174;
+    const spots = [{x:60,y:38},{x:75,y:52},{x:60,y:64},{x:135,y:38},{x:150,y:52},{x:135,y:64},{x:16,y:35},{x:16,y:75},{x:200,y:35},{x:200,y:75},{x:85,y:85},{x:95,y:95},{x:120,y:110},{x:70,y:130},{x:155,y:130}];
+    const ctr = { x: 175, y: 24 };
+    const tick = () => {
+      const cs = ref.current;
+      if (cs.length < target && Math.random() < 0.08) {
+        const sd = Math.floor(Math.random()*10000);
+        const sp = spots[Math.floor(Math.random()*spots.length)];
+        cs.push({ x:doorX,y:doorY,seed:sd,targetX:sp.x+Math.random()*6-3,targetY:sp.y+Math.random()*6-3,state:"entering",timer:0,browseTime:120+Math.floor(Math.random()*200),speed:0.4+Math.random()*0.3,isChild:sd%6===0 });
+      }
+      for(let i=cs.length-1;i>=0;i--){
+        const c=cs[i];if(!c){cs.splice(i,1);continue;}
+        const ddx=c.targetX-c.x,ddy=c.targetY-c.y,d=Math.sqrt(ddx*ddx+ddy*ddy);
+        if(isNaN(d)){cs.splice(i,1);continue;}
+        if(d>1.5){c.x+=(ddx/d)*c.speed;c.y+=(ddy/d)*c.speed;}
+        else switch(c.state){
+          case "entering":c.state="browsing";c.timer=0;break;
+          case "browsing":c.timer++;if(c.timer>c.browseTime){if(Math.random()<0.6){c.state="checkout";c.targetX=ctr.x+Math.random()*10-5;c.targetY=ctr.y+Math.random()*6;}else{c.state="leaving";c.targetX=doorX;c.targetY=doorY;}}else if(c.timer%80===0&&Math.random()<0.4){const ns=spots[Math.floor(Math.random()*spots.length)];c.targetX=ns.x+Math.random()*6-3;c.targetY=ns.y+Math.random()*6-3;}break;
+          case "checkout":c.timer++;if(c.timer>c.browseTime+60){c.state="leaving";c.targetX=doorX;c.targetY=doorY;}break;
+          case "leaving":if(d<3)cs.splice(i,1);break;
+        }
+      }
+    };
+    const iv=setInterval(tick,33);return()=>clearInterval(iv);
+  },[target,storeOpen]);
+  return ref;
+}
+
+// ═══════════════════════════════════════════
+// UI COMPONENTS
+// ═══════════════════════════════════════════
+const S = { bg:"#fdf6e3",pa:"#faf3e0",cd:"#fffdf7",ink:"#3e2723",il:"#8d6e63",bd:"#e8d5b7",ac:"#6d4c41",ad:"#4e342e",fd:"'Playfair Display','Georgia',serif",fb:"'Lora','Georgia',serif" };
+
+function Btn({onClick,children,disabled,variant="primary",small}){
+  const s={primary:{bg:S.ac,c:"#fff"},secondary:{bg:S.cd,c:S.ink},danger:{bg:"#c0392b",c:"#fff"},success:{bg:"#27ae60",c:"#fff"},gold:{bg:"#b8860b",c:"#fff"}}[variant]||{bg:S.ac,c:"#fff"};
+  return React.createElement("button",{onClick,disabled,style:{padding:small?"4px 10px":"8px 16px",border:`1px solid ${S.bd}`,borderRadius:6,cursor:disabled?"not-allowed":"pointer",background:disabled?S.bd:s.bg,color:disabled?S.il:s.c,fontWeight:600,fontSize:small?12:13,fontFamily:S.fb,opacity:disabled?0.5:1,transition:"all 0.15s"}},children);
+}
+
+function TabBtn({active,onClick,children}){return React.createElement("button",{onClick,style:{padding:"6px 12px",border:"none",borderRadius:6,cursor:"pointer",background:active?S.ac:"transparent",fontFamily:S.fb,color:active?"#fff":S.il,fontWeight:active?600:400,fontSize:13,whiteSpace:"nowrap"}},children);}
+
+function StoreView({ state, onClickCustomer, storeOpen }) {
+  const canvasRef = useRef(null);
+  const custRef = useCustomerAnim(state, !!storeOpen);
+  const animRef = useRef(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const handleClick = (e) => {
+    const cv = canvasRef.current; if (!cv) return;
+    const rect = cv.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (CW / rect.width);
+    const my = (e.clientY - rect.top) * (CH / rect.height);
+    const loc = LOCATIONS[stateRef.current.location];
+    const shp = loc.layout.shape;
+    const soX = (CW - shp.w) / 2, soY = (CH - shp.h) / 2;
+    for (const cu of (custRef.current || [])) {
+      if (!cu || typeof cu.x !== "number") continue;
+      const rx = soX + (cu.x / 220) * shp.w, ry = soY + (cu.y / 180) * shp.h;
+      if (Math.sqrt((mx-rx)**2+(my-ry)**2) < 20) { onClickCustomer(rd(stateRef.current.regulars)); return; }
+    }
+  };
+  useEffect(() => {
+    const cv = canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext("2d"); let running = true;
+    const render = () => { if(!running)return; try{drawTopDown(ctx,stateRef.current,custRef.current||[]);}catch(e){} animRef.current=requestAnimationFrame(render); };
+    animRef.current = requestAnimationFrame(render);
+    return () => { running=false; if(animRef.current)cancelAnimationFrame(animRef.current); };
+  }, []);
+  return React.createElement("div",{style:{position:"relative",background:"#1a1a1a",borderRadius:12,overflow:"hidden",border:"2px solid rgba(0,0,0,0.15)",margin:"0 0 14px 0",boxShadow:"0 4px 16px rgba(0,0,0,0.12)"}},
+    React.createElement("canvas",{ref:canvasRef,width:CW,height:CH,onClick:handleClick,style:{width:"100%",height:"auto",display:"block",cursor:"pointer"}})
+  );
+}
+
+function SpeechBubble({ text, onClose }) {
+  if (!text) return null;
+  return React.createElement("div",{style:{background:S.cd,border:`2px solid ${S.ac}`,borderRadius:12,padding:"10px 14px",marginBottom:12,position:"relative",boxShadow:"0 2px 8px rgba(0,0,0,0.1)"}},
+    React.createElement("div",{style:{fontSize:11,color:S.ad,fontWeight:700,marginBottom:3}},"💬 Customer says:"),
+    React.createElement("div",{style:{fontSize:14,fontStyle:"italic",lineHeight:1.5,color:S.ink}},'"'+text+'"'),
+    React.createElement("button",{onClick:onClose,style:{position:"absolute",top:6,right:8,background:"none",border:"none",cursor:"pointer",color:S.il,fontSize:16}},"✕")
+  );
+}
+
+function TransactionFeed({ transactions }) {
+  const feedRef = useRef(null);
+  useEffect(() => { if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight; }, [transactions.length]);
+  if (!transactions || transactions.length === 0) return React.createElement("div",{style:{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:12,marginBottom:12,textAlign:"center",fontSize:12,color:S.il}},"💰 Waiting for customers...");
+  const sales = transactions.filter(t => t.type === "sale");
+  return React.createElement("div",{style:{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,marginBottom:12,overflow:"hidden"}},
+    React.createElement("div",{style:{padding:"8px 12px",borderBottom:`1px solid ${S.bd}`,fontSize:12,fontWeight:700,color:S.ink,display:"flex",justifyContent:"space-between"}},
+      React.createElement("span",null,"💰 Live Transactions"),
+      React.createElement("span",{style:{color:S.il,fontWeight:400}},sales.length+" sales")
+    ),
+    React.createElement("div",{ref:feedRef,style:{maxHeight:140,overflowY:"auto",padding:"4px 0"}},
+      transactions.slice(-20).map(tx => React.createElement("div",{key:tx.id,style:{padding:"4px 12px",fontSize:12,display:"flex",justifyContent:"space-between",borderBottom:"1px solid rgba(0,0,0,0.04)"}},
+        tx.type === "sale"
+          ? React.createElement(Fragment,null,React.createElement("span",null,GENRES[tx.genre].emoji+" "+GENRES[tx.genre].name+" sold"),React.createElement("span",{style:{fontWeight:700,color:"#27ae60"}},"+$"+tx.amount))
+          : React.createElement(Fragment,null,React.createElement("span",{style:{color:S.il}},"👤 Customer browsing..."),React.createElement("span",{style:{color:S.il,fontSize:11}},"—"))
+      ))
+    ),
+    React.createElement("div",{style:{padding:"6px 12px",borderTop:`1px solid ${S.bd}`,display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700}},
+      React.createElement("span",null,"Today's Revenue"),
+      React.createElement("span",{style:{color:"#27ae60"}},"$"+sales.reduce((s,t)=>s+t.amount,0))
+    )
+  );
+}
+
+// ═══════════════════════════════════════════
+// TABS — Using JSX for readability
+// ═══════════════════════════════════════════
+
+function DashboardTab({ state, dispatch, phase, onOpenStore, timeLeft }) {
+  const loc = LOCATIONS[state.location], r = state.dailyReport;
+  const quote = useMemo(() => rq(), [state.day]);
+  const us = getUpgradeStats(state);
+  const [bubble, setBubble] = useState(null);
+  const isOpen = phase === "open";
+
+  return (
+    <div>
+      <div style={{background:S.pa,borderBottom:`1px solid ${S.bd}`,padding:"8px 16px",fontStyle:"italic",fontSize:12,color:S.il,textAlign:"center"}}>
+        "{quote.t}" — <b>{quote.a}</b>
+      </div>
+      <div style={{padding:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:700,fontFamily:S.fd}}>{loc.icon} {loc.name}</div>
+            <div style={{fontSize:12,color:S.il}}>Day {state.day} · {DAY_NAMES[state.dayOfWeek]} · Week {state.week}</div>
+          </div>
+          {phase === "planning" && !state.gameOver && <Btn onClick={onOpenStore} variant="success">☀ Open Store</Btn>}
+          {phase === "planning" && state.gameOver && <span style={{fontSize:13,fontWeight:700,color:"#c0392b"}}>Game Over</span>}
+          {isOpen && (
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:11,color:S.il}}>Store is open!</div>
+              <div style={{fontSize:18,fontWeight:700,fontFamily:S.fd,color:timeLeft<20?"#c0392b":S.ad}}>
+                {Math.floor(timeLeft/60)}:{(timeLeft%60).toString().padStart(2,"0")}
+              </div>
+            </div>
+          )}
+        </div>
+        {phase === "planning" && !state.gameOver && (
+          <div style={{background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:"#2e7d32"}}>
+            ☕ Store is closed. Restock, hire staff, and manage upgrades before opening!
+          </div>
+        )}
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+          {[["Cash","$"+state.cash.toLocaleString(),state.cash<500?"#c0392b":S.ad,"💰"],["Reputation",(Math.round(state.reputation*10)/10).toFixed(1)+"%",null,"⭐"],["Coziness",us.coz,null,"🛋️"],["Staff",Object.values(state.staff).reduce((s,v)=>s+v,0),null,"👥"]].map(([l,v,col,em])=>(
+            <div key={l} style={{background:S.cd,borderRadius:8,padding:"12px 14px",border:`1px solid ${S.bd}`,flex:"1 1 0",minWidth:90}}>
+              <div style={{fontSize:11,color:S.il,textTransform:"uppercase"}}>{em} {l}</div>
+              <div style={{fontSize:22,fontWeight:700,color:col||S.ink,fontFamily:S.fd}}>{v}</div>
+            </div>
+          ))}
+        </div>
+        {isOpen && <div style={{fontSize:11,color:S.il,marginBottom:6}}>👆 Click on a customer to hear what they're saying!</div>}
+        <StoreView state={state} onClickCustomer={(text)=>setBubble(text)} storeOpen={isOpen} />
+        {isOpen && <SpeechBubble text={bubble} onClose={()=>setBubble(null)} />}
+        {isOpen && <TransactionFeed transactions={state.transactions} />}
+        {phase === "planning" && r && (
+          <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:12,marginBottom:14,fontSize:12,color:S.il}}>
+            📋 Last day: {r.customers} customers · ${r.revenue} revenue · <span style={{color:r.profit>=0?"#27ae60":"#c0392b",fontWeight:700}}>${r.profit} profit</span>
+          </div>
+        )}
+        {state.notifications.map((n,i) => <div key={i} style={{background:"#fef9e7",border:"1px solid #f9e79f",borderRadius:6,padding:"8px 12px",fontSize:12,marginBottom:4,color:"#7d6608"}}>⚠️ {n}</div>)}
+        {state.gameOver && (
+          <div style={{background:"#fadbd8",border:"2px solid #c0392b",borderRadius:10,padding:20,textAlign:"center"}}>
+            <div style={{fontSize:20,fontWeight:700,color:"#c0392b",fontFamily:S.fd}}>📕 The bookstore has closed.</div>
+            <div style={{fontSize:13,color:"#922b21",marginTop:8}}>Lasted {state.day} days.</div>
+          </div>
+        )}
+        {state.history.length > 1 && (
+          <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:14,marginTop:12}}>
+            <div style={{fontWeight:700,fontSize:13,marginBottom:8,fontFamily:S.fd}}>📈 Profit History</div>
+            <div style={{display:"flex",alignItems:"flex-end",gap:2,height:50}}>
+              {state.history.map((h,i)=>{
+                const mx=Math.max(...state.history.map(x=>Math.abs(x.profit)),1);
+                return <div key={i} style={{flex:1,height:Math.max(2,(Math.abs(h.profit)/mx)*44),borderRadius:"3px 3px 0 0",background:h.profit>=0?"#27ae60":"#c0392b",opacity:0.7+(i/state.history.length)*0.3,minWidth:3}} />;
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InventoryTab({ state, dispatch }) {
+  const amounts = getBuyAmounts(state);
+  const cap = getShelfCapacity(state), total = getTotalStock(state);
+  const pct = Math.min(100, Math.round((total/cap)*100));
+  return (
+    <div style={{padding:16}}>
+      <div style={{fontSize:16,fontWeight:700,fontFamily:S.fd,marginBottom:4}}>📦 Book Inventory</div>
+      <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:12,marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}>
+          <span style={{color:S.il}}>📚 Total Stock: <b>{total}</b> / {cap}</span>
+          <span style={{color:pct>90?"#c0392b":pct>70?"#f39c12":"#27ae60",fontWeight:700}}>{pct}%</span>
+        </div>
+        <div style={{height:8,background:"rgba(0,0,0,0.08)",borderRadius:4,overflow:"hidden"}}>
+          <div style={{height:"100%",width:pct+"%",background:pct>90?"#c0392b":pct>70?"#f39c12":"#27ae60",borderRadius:4}} />
+        </div>
+      </div>
+      {Object.entries(GENRES).map(([k,g])=>{
+        const inv=state.inventory[k];const atCap=total>=cap;
+        return (
+          <div key={k} style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:12,marginBottom:8}}>
+            <div style={{marginBottom:8}}><span style={{fontSize:18,marginRight:6}}>{g.emoji}</span><b>{g.name}</b><span style={{fontSize:12,color:S.il,marginLeft:8}}>Stock: {inv.stock} · ${g.cost}/ea</span></div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+              {amounts.map(q=><Btn key={q} small variant="secondary" disabled={state.cash<g.cost*q||atCap} onClick={()=>dispatch({type:"BUY_BOOKS",genre:k,qty:q})}>+{q} (${g.cost*q})</Btn>)}
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <span style={{fontSize:12,color:S.il,width:65}}>Price: ${inv.price}</span>
+              <Btn small variant="secondary" onClick={()=>dispatch({type:"SET_PRICE",genre:k,price:inv.price-1})}>−$1</Btn>
+              <Btn small variant="secondary" onClick={()=>dispatch({type:"SET_PRICE",genre:k,price:inv.price+1})}>+$1</Btn>
+              <Btn small variant="secondary" onClick={()=>dispatch({type:"SET_PRICE",genre:k,price:g.basePrice})}>Reset</Btn>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StaffTab({ state, dispatch }) {
+  const totalWage = getStaffCost(state.staff);
+  return (
+    <div style={{padding:16}}>
+      <div style={{fontSize:16,fontWeight:700,fontFamily:S.fd,marginBottom:4}}>👥 Staff</div>
+      <div style={{fontSize:12,color:S.il,marginBottom:14}}>Daily wages: <b>${totalWage}</b></div>
+      {Object.entries(STAFF_ROLES).map(([role,info])=>{
+        const count=state.staff[role]||0;const atMax=count>=info.max;
+        let locked=false,lockMsg="";
+        if(info.req==="cafe"&&!state.upgrades.cafe){locked=true;lockMsg="Requires: "+info.reqLabel;}
+        if(info.req==="maxLevel"&&!isMaxLevel(state)){locked=true;lockMsg="Requires: "+info.reqLabel;}
+        return (
+          <div key={role} style={{background:locked?"rgba(0,0,0,0.03)":S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:14,marginBottom:10,opacity:locked?0.6:1}}>
+            <div style={{fontSize:14,fontWeight:700}}>{info.emoji} {info.name} — ${info.wage}/day</div>
+            <div style={{fontSize:12,color:S.il,marginBottom:6,marginTop:2}}>{info.desc}</div>
+            {locked ? <div style={{fontSize:11,color:"#c0392b",fontWeight:600}}>🔒 {lockMsg}</div> : (
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <span style={{fontSize:20,fontWeight:700,fontFamily:S.fd,width:30,textAlign:"center"}}>{count}</span>
+                <Btn small variant="success" disabled={atMax} onClick={()=>dispatch({type:"HIRE",role})}>Hire</Btn>
+                <Btn small variant="danger" disabled={count<=0} onClick={()=>dispatch({type:"FIRE",role})}>Fire</Btn>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DesignTab({ state, dispatch }) {
+  const [picking, setPicking] = useState(null);
+  const loc = LOCATIONS[state.location];
+  const curSh = state.shelves || loc.layout.startShelves;
+  const maxSh = loc.layout.maxShelves;
+  const nextCost = 400 + curSh * 200;
+
+  return (
+    <div style={{padding:16}}>
+      <div style={{fontSize:16,fontWeight:700,fontFamily:S.fd,marginBottom:4}}>🏠 Store Improvements</div>
+      <div style={{fontSize:12,color:S.il,marginBottom:14}}>Coziness: {getUpgradeStats(state).coz}</div>
+      <StoreView state={state} onClickCustomer={()=>{}} storeOpen={false} />
+
+      {/* Shelves */}
+      <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:10,padding:14,marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700}}>📚 Bookshelves ({curSh}/{maxSh})</div>
+            <div style={{fontSize:12,color:S.il,marginTop:2}}>Capacity: {getShelfCapacity(state)} books</div>
+          </div>
+          {curSh>=maxSh ? <span style={{fontSize:11,color:"#27ae60",fontWeight:700}}>✓ FULL</span>
+          : <Btn small disabled={state.cash<nextCost} onClick={()=>dispatch({type:"BUY_SHELF"})}>+ Shelf · ${nextCost}</Btn>}
+        </div>
+      </div>
+
+      {/* Storage */}
+      {(()=>{
+        const sLvl=state.storageUpgrades||0;const sCost=800+sLvl*600;
+        return (
+          <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:10,padding:14,marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontSize:14,fontWeight:700}}>📦 Storage (Lvl {sLvl}/5)</div></div>
+              {sLvl>=5 ? <span style={{fontSize:11,color:"#27ae60",fontWeight:700}}>✓ MAX</span>
+              : <Btn small disabled={state.cash<sCost} onClick={()=>dispatch({type:"BUY_STORAGE"})}>Expand · ${sCost}</Btn>}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Cat builder */}
+      {picking === "catResident" && (
+        <CatBuilder state={state} dispatch={dispatch} onClose={()=>setPicking(null)} />
+      )}
+
+      {/* Variant picker */}
+      {picking && picking !== "catResident" && UPGRADES[picking].variants && (
+        <div style={{background:S.cd,border:`2px solid ${S.ac}`,borderRadius:12,padding:16,marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontWeight:700,fontSize:15,fontFamily:S.fd}}>Choose your {UPGRADES[picking].name}</div>
+            <button onClick={()=>setPicking(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:S.il}}>✕</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {Object.entries(UPGRADES[picking].variants).map(([vid,v])=>(
+              <button key={vid} onClick={()=>{dispatch({type:"BUY_UPGRADE",upgrade:picking,variant:vid});setPicking(null);}}
+                style={{background:S.pa,border:`2px solid ${S.bd}`,borderRadius:8,padding:10,cursor:"pointer",textAlign:"left",fontFamily:S.fb}}>
+                <div style={{display:"flex",gap:3,marginBottom:6}}>
+                  {Object.values(v.colors).filter(c2=>typeof c2==="string").slice(0,4).map((col,i)=>(
+                    <div key={i} style={{width:16,height:16,borderRadius:4,background:col,border:"1px solid rgba(0,0,0,0.15)"}} />
+                  ))}
+                </div>
+                <div style={{fontSize:13,fontWeight:700}}>{v.name}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {Object.entries(UPGRADES).map(([k,u])=>{
+          const owned=state.upgrades[k];const t=owned?.tier||0;
+          const canT2=t===1&&u.tier2;
+          return (
+            <div key={k} style={{background:owned?S.pa:S.cd,border:`1px solid ${owned?S.ac:S.bd}`,borderRadius:8,padding:12}}>
+              <div style={{fontSize:22}}>{u.emoji}</div>
+              <div style={{fontSize:13,fontWeight:700,marginTop:4}}>{t===2?u.tier2.name:u.name}</div>
+              <div style={{fontSize:11,color:S.il,marginBottom:6}}>{t===2?u.tier2.desc:u.desc}</div>
+              {!owned ? (
+                k==="catResident" ? <Btn small disabled={state.cash<u.cost} onClick={()=>setPicking("catResident")}>Adopt · ${u.cost}</Btn>
+                : u.variants ? <Btn small disabled={state.cash<u.cost} onClick={()=>setPicking(k)}>Choose · ${u.cost}</Btn>
+                : <Btn small disabled={state.cash<u.cost} onClick={()=>dispatch({type:"BUY_UPGRADE",upgrade:k})}>Install · ${u.cost}</Btn>
+              ) : canT2 ? (
+                <div>
+                  <span style={{fontSize:11,color:S.ad,fontWeight:700}}>✓ Installed</span>
+                  <div style={{marginTop:4}}><Btn small variant="gold" disabled={state.cash<u.tier2.cost} onClick={()=>dispatch({type:"BUY_UPGRADE",upgrade:k,tier2:true})}>⬆ ${u.tier2.cost}</Btn></div>
+                </div>
+              ) : <span style={{fontSize:11,color:t===2?"#b8860b":S.ad,fontWeight:700}}>{t===2?"★ Premium":"✓ Installed"}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CatBuilder({ state, dispatch, onClose }) {
+  const [catName, setCatName] = useState("Whiskers");
+  const [catColor, setCatColor] = useState("orange");
+  const colors = UPGRADES.catResident.catColors;
+  const cc = colors[catColor];
+  const cost = UPGRADES.catResident.cost;
+  return (
+    <div style={{background:S.cd,border:`2px solid ${S.ac}`,borderRadius:12,padding:16,marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:16,fontFamily:S.fd}}>🐱 Adopt a Shop Cat</div>
+        <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:S.il}}>✕</button>
+      </div>
+      <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+        <svg width="120" height="100" viewBox="0 0 120 100">
+          <ellipse cx="60" cy="62" rx="28" ry="22" fill={cc.body} />
+          <ellipse cx="60" cy="30" rx="22" ry="18" fill={cc.body} />
+          <polygon points="38,14 48,4 50,20" fill={cc.ear} />
+          <polygon points="82,14 72,4 70,20" fill={cc.ear} />
+          <ellipse cx="52" cy="28" rx="6" ry="5" fill="#fff" />
+          <ellipse cx="68" cy="28" rx="6" ry="5" fill="#fff" />
+          <circle cx="52" cy="29" r="3.5" fill="#5a8a5a" />
+          <circle cx="68" cy="29" r="3.5" fill="#5a8a5a" />
+          <circle cx="52" cy="29" r="2" fill="#1a1a1a" />
+          <circle cx="68" cy="29" r="2" fill="#1a1a1a" />
+          <polygon points="58,36 62,36 60,39" fill={cc.nose} />
+        </svg>
+      </div>
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Cat's Name</label>
+        <input type="text" value={catName} maxLength={16} onChange={e=>setCatName(e.target.value)}
+          style={{width:"100%",padding:"8px 12px",border:`2px solid ${S.bd}`,borderRadius:8,fontFamily:S.fd,fontSize:16,fontWeight:700,color:S.ink,background:S.pa,outline:"none",boxSizing:"border-box"}} />
+      </div>
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:6}}>Fur Color</label>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4, 1fr)",gap:6}}>
+          {Object.entries(colors).map(([key,c])=>(
+            <button key={key} onClick={()=>setCatColor(key)} style={{padding:8,border:catColor===key?`3px solid ${S.ac}`:`2px solid ${S.bd}`,borderRadius:10,cursor:"pointer",background:S.pa,textAlign:"center"}}>
+              <div style={{width:"100%",height:24,borderRadius:6,background:c.body,marginBottom:4}} />
+              <div style={{fontSize:10,fontWeight:600}}>{c.name}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{textAlign:"center"}}>
+        <Btn disabled={!catName.trim()||state.cash<cost} onClick={()=>{dispatch({type:"BUY_UPGRADE",upgrade:"catResident",catName:catName.trim(),catColor});onClose();}}>
+          🐱 Adopt {catName.trim()||"Cat"} · ${cost}
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+function ExpansionTab({ state, dispatch }) {
+  const loc = LOCATIONS[state.location];
+  const available = loc.layout.expansions || [];
+  return (
+    <div style={{padding:16}}>
+      <div style={{fontSize:16,fontWeight:700,fontFamily:S.fd,marginBottom:14}}>🏗️ Store Expansions</div>
+      {Object.entries(EXPANSIONS).map(([k,e])=>{
+        const owned=!!state.expansions[k];
+        const locked=e.requires&&!state.expansions[e.requires];
+        const unavailable=!available.includes(k);
+        if(unavailable&&!owned) return <div key={k} style={{background:"rgba(0,0,0,0.03)",border:`1px dashed ${S.bd}`,borderRadius:10,padding:14,marginBottom:10,opacity:0.4}}><div style={{fontSize:14,fontWeight:700,color:S.il}}>{e.emoji} {e.name}</div><div style={{fontSize:11,color:S.il}}>Not available here</div></div>;
+        return (
+          <div key={k} style={{background:owned?S.pa:S.cd,border:`2px solid ${owned?"#27ae60":locked?"#ccc":S.bd}`,borderRadius:10,padding:16,marginBottom:10,opacity:locked?0.6:1}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:700}}>{e.emoji} {e.name}</div>
+                <div style={{fontSize:12,color:S.il,marginTop:2}}>{e.desc}</div>
+                <div style={{fontSize:11,color:S.il,marginTop:4}}>Rent +${e.rentIncrease}/mo · +{e.maxCustBonus} customers</div>
+                {locked && <div style={{fontSize:11,color:"#c0392b",marginTop:4}}>Requires: {EXPANSIONS[e.requires].name}</div>}
+              </div>
+              {owned ? <span style={{fontSize:13,color:"#27ae60",fontWeight:700}}>✓ Built</span>
+              : <Btn disabled={locked||state.cash<e.cost} onClick={()=>dispatch({type:"BUY_EXPANSION",expansion:k})}>${e.cost.toLocaleString()}</Btn>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EventsTab({ state, dispatch }) {
+  return (
+    <div style={{padding:16}}>
+      <div style={{fontSize:16,fontWeight:700,fontFamily:S.fd,marginBottom:14}}>🎉 Events</div>
+      {state.scheduledEvents.length > 0 && (
+        <div style={{marginBottom:12,padding:10,background:S.pa,borderRadius:8,fontSize:12}}>
+          <b>Up next:</b> {state.scheduledEvents.map((e,i)=><span key={i} style={{marginLeft:6}}>{EVENTS[e].emoji} {EVENTS[e].name}</span>)}
+        </div>
+      )}
+      {Object.entries(EVENTS).map(([k,ev])=>(
+        <div key={k} style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:14,marginBottom:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{fontSize:14,fontWeight:700}}>{ev.emoji} {ev.name}</div>
+            <Btn small disabled={state.cash<ev.cost} onClick={()=>dispatch({type:"SCHEDULE_EVENT",event:k})}>${ev.cost}</Btn>
+          </div>
+          <div style={{fontSize:12,color:S.il}}>{ev.desc}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CollectionTab({ state }) {
+  const books = state.rareBooks || [];
+  const totalValue = books.reduce((s,b)=>s+b.value,0);
+  return (
+    <div style={{padding:16}}>
+      <div style={{fontSize:16,fontWeight:700,fontFamily:S.fd,marginBottom:4}}>📜 Rare Book Collection</div>
+      <div style={{fontSize:12,color:S.il,marginBottom:14}}>{books.length}/{RARE_BOOKS.length} discovered · Value: <b>${totalValue.toLocaleString()}</b></div>
+      {books.length === 0 ? (
+        <div style={{textAlign:"center",padding:30,color:S.il}}>
+          <div style={{fontSize:36,marginBottom:10}}>📚</div>
+          <div style={{fontSize:14,fontWeight:600}}>No rare books yet!</div>
+          <div style={{fontSize:12,marginTop:4}}>Keep running your store — customers will occasionally donate rare books.</div>
+        </div>
+      ) : [...books].reverse().map((b,i) => (
+        <div key={b.id+i} style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:10,padding:12,display:"flex",gap:12,marginBottom:8}}>
+          <div style={{width:36,height:48,borderRadius:"2px 6px 6px 2px",background:b.color,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,border:`2px solid ${RARITY_COLORS[b.rarity]}`}}>{b.emoji}</div>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <div style={{fontSize:13,fontWeight:700}}>{b.name}</div>
+              <span style={{fontSize:9,fontWeight:700,color:RARITY_COLORS[b.rarity],background:RARITY_COLORS[b.rarity]+"18",padding:"1px 6px",borderRadius:8}}>{b.rarity}</span>
+            </div>
+            <div style={{fontSize:11,color:S.il,marginTop:2}}>{b.desc}</div>
+            <div style={{fontSize:11,color:S.il,marginTop:4}}>📅 {b.year} · 💰 ${b.value.toLocaleString()}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HoursTab({ state, dispatch }) {
+  const { open, close } = state.storeHours;
+  const fh = h => h===0||h===24?"12 AM":h===12?"12 PM":h<12?`${h} AM`:`${h-12} PM`;
+  const [saveStatus, setSaveStatus] = useState(null);
+  return (
+    <div style={{padding:16}}>
+      <div style={{fontSize:16,fontWeight:700,fontFamily:S.fd,marginBottom:14}}>🕐 Store Hours</div>
+      <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:16,marginBottom:14}}>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Open: {fh(open)}</label>
+          <input type="range" min={5} max={14} value={open} style={{width:"100%"}} onChange={e=>dispatch({type:"SET_HOURS",hours:{open:Number(e.target.value),close:Math.max(Number(e.target.value)+1,close)}})} />
+        </div>
+        <div>
+          <label style={{fontSize:13,fontWeight:600,display:"block",marginBottom:6}}>Close: {fh(close)}</label>
+          <input type="range" min={open+1} max={23} value={close} style={{width:"100%"}} onChange={e=>dispatch({type:"SET_HOURS",hours:{open,close:Number(e.target.value)}})} />
+        </div>
+      </div>
+      <div style={{fontSize:16,fontWeight:700,fontFamily:S.fd,marginBottom:4,marginTop:20}}>💾 Save Game</div>
+      <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:8,padding:14}}>
+        <div style={{fontSize:12,color:S.il,marginBottom:10}}>📚 {state.storeName} · Day {state.day} · ${state.cash.toLocaleString()}</div>
+        <div style={{display:"flex",gap:8}}>
+          <Btn small variant="success" onClick={async()=>{try{await store.set(SAVE_KEY,JSON.stringify({...state,transactions:[],todaySales:{revenue:0,booksSold:{},customers:0}}));setSaveStatus("saved");setTimeout(()=>setSaveStatus(null),2000);}catch(e){setSaveStatus("error");}}}>💾 Save Now</Btn>
+          <Btn small variant="danger" onClick={async()=>{await store.del(SAVE_KEY);setSaveStatus("deleted");setTimeout(()=>setSaveStatus(null),2000);}}>🗑️ Delete</Btn>
+        </div>
+        {saveStatus==="saved"&&<div style={{fontSize:11,color:"#27ae60",marginTop:8,fontWeight:600}}>✓ Saved!</div>}
+        {saveStatus==="deleted"&&<div style={{fontSize:11,color:"#c0392b",marginTop:8,fontWeight:600}}>Deleted.</div>}
+      </div>
+    </div>
+  );
+}
+
+function EndOfDayReport({ state, report, onClose }) {
+  const loc = LOCATIONS[state.location];
+  return (
+    <div style={{padding:20}}>
+      <div style={{textAlign:"center",marginBottom:16}}>
+        <div style={{fontSize:28,marginBottom:4}}>🌙</div>
+        <div style={{fontSize:20,fontWeight:700,fontFamily:S.fd}}>Closing Time</div>
+        <div style={{fontSize:13,color:S.il}}>Day {state.day} · {DAY_NAMES[state.dayOfWeek]}</div>
+      </div>
+      <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:10,padding:16,marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:10,fontFamily:S.fd}}>📊 Daily Report</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 20px",fontSize:14}}>
+          <div>Customers</div><div style={{fontWeight:700,textAlign:"right"}}>{report.customers}</div>
+          <div>Revenue</div><div style={{fontWeight:700,textAlign:"right",color:"#27ae60"}}>${report.revenue}</div>
+          <div>Costs</div><div style={{fontWeight:700,textAlign:"right",color:"#c0392b"}}>${report.costs}</div>
+          <div style={{borderTop:`1px solid ${S.bd}`,paddingTop:6}}>Profit</div>
+          <div style={{borderTop:`1px solid ${S.bd}`,paddingTop:6,fontWeight:700,textAlign:"right",fontSize:16,color:report.profit>=0?"#27ae60":"#c0392b"}}>${report.profit}</div>
+        </div>
+        {Object.keys(report.booksSold).length > 0 && (
+          <div style={{marginTop:10,fontSize:12,color:S.il,borderTop:`1px solid ${S.bd}`,paddingTop:8}}>
+            Books sold: {Object.entries(report.booksSold).map(([g,n])=>`${GENRES[g].emoji} ${n}`).join(" · ")}
+          </div>
+        )}
+      </div>
+      {report.comments && report.comments.length > 0 && (
+        <div style={{background:S.cd,border:`1px solid ${S.bd}`,borderRadius:10,padding:16,marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:10,fontFamily:S.fd}}>💬 What customers said</div>
+          {report.comments.map((c,i) => <div key={i} style={{padding:"8px 0",borderBottom:i<report.comments.length-1?`1px solid ${S.bd}`:"none",fontSize:13,fontStyle:"italic",lineHeight:1.5}}>"{c}"</div>)}
+        </div>
+      )}
+      {report.notifications.map((n,i) => <div key={i} style={{background:"#fef9e7",border:"1px solid #f9e79f",borderRadius:6,padding:"8px 12px",fontSize:12,marginBottom:4,color:"#7d6608"}}>⚠️ {n}</div>)}
+      <div style={{textAlign:"center",marginTop:16}}>
+        <Btn onClick={onClose}>☀ Start Next Day</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════
+function BookstoreGame() {
+  const [screen, setScreen] = useState("title");
+  const [lid, setLid] = useState(null);
+  const [gk, setGk] = useState(0);
+  const [storeName, setStoreName] = useState("Paper Dreams");
+  const [savedGame, setSavedGame] = useState(null);
+  const [loadingDone, setLoadingDone] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { const raw = await store.get(SAVE_KEY); if (raw) setSavedGame(JSON.parse(raw)); } catch(e) {}
+      setLoadingDone(true);
+    })();
+  }, []);
+
+  if (!loadingDone) return (
+    <div style={{fontFamily:S.fb,background:S.bg,color:S.ink,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{textAlign:"center"}}><div style={{fontSize:48,marginBottom:8}}>📚</div><div style={{fontSize:14,color:S.il}}>Loading...</div></div>
+    </div>
+  );
+
+  if (screen === "title") {
+    const q = rq();
+    return (
+      <div style={{fontFamily:S.fb,background:S.bg,color:S.ink,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:8}}>📚</div>
+        <h1 style={{fontFamily:S.fd,fontSize:32,fontWeight:900,marginBottom:4}}>Paper Dreams</h1>
+        <p style={{color:S.il,fontSize:14,fontStyle:"italic",maxWidth:340,marginBottom:28,lineHeight:1.5}}>A cozy business management game about running your own little bookstore.</p>
+        <div style={{display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
+          {savedGame && (
+            <button onClick={()=>{setLid(savedGame.location);setStoreName(savedGame.storeName||"Paper Dreams");setScreen("game-load");setGk(k=>k+1);}}
+              style={{padding:"12px 36px",background:"#27ae60",color:"#fff",border:"none",borderRadius:8,fontFamily:S.fd,fontSize:16,fontWeight:700,cursor:"pointer",width:220}}>
+              Continue · Day {savedGame.day}
+            </button>
+          )}
+          <button onClick={()=>setScreen("select")} style={{padding:"12px 36px",background:savedGame?S.cd:S.ac,color:savedGame?S.ink:"#fff",border:savedGame?`1px solid ${S.bd}`:"none",borderRadius:8,fontFamily:S.fd,fontSize:16,fontWeight:700,cursor:"pointer",width:220}}>New Game</button>
+          {savedGame && (
+            <div style={{marginTop:8}}>
+              <div style={{fontSize:12,color:S.il}}>{savedGame.storeName} · ${(savedGame.cash||0).toLocaleString()}</div>
+              <button onClick={async()=>{await store.del(SAVE_KEY);setSavedGame(null);}} style={{background:"none",border:"none",color:"#c0392b",fontSize:11,cursor:"pointer",textDecoration:"underline",marginTop:4}}>Delete save</button>
+            </div>
+          )}
+        </div>
+        <div style={{marginTop:32,fontSize:12,color:S.il,fontStyle:"italic",maxWidth:280}}>"{q.t}" — {q.a}</div>
+      </div>
+    );
+  }
+
+  if (screen === "select") {
+    return (
+      <div style={{fontFamily:S.fb,background:S.bg,color:S.ink,minHeight:"100vh",padding:20}}>
+        <button onClick={()=>setScreen("title")} style={{background:"none",border:"none",color:S.il,cursor:"pointer",fontSize:13,marginBottom:12}}>← Back</button>
+        <h2 style={{fontFamily:S.fd,fontSize:22,fontWeight:700,marginBottom:16}}>Choose Your Location</h2>
+        {Object.entries(LOCATIONS).map(([id,loc])=>{
+          const dc={Easiest:"#27ae60",Easy:"#2ecc71",Hard:"#e67e22",Hardest:"#c0392b"};
+          return (
+            <button key={id} onClick={()=>{setLid(id);setScreen("name");}}
+              style={{display:"block",width:"100%",maxWidth:450,background:S.cd,border:`2px solid ${S.bd}`,borderRadius:10,padding:16,textAlign:"left",cursor:"pointer",fontFamily:S.fb,marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{fontSize:16,fontWeight:700,fontFamily:S.fd}}>{loc.icon} {loc.name}</span>
+                <span style={{fontSize:11,fontWeight:700,color:dc[loc.difficulty],background:dc[loc.difficulty]+"18",padding:"2px 8px",borderRadius:20}}>{loc.difficulty}</span>
+              </div>
+              <div style={{fontSize:12,color:S.il,marginTop:4}}>{loc.desc}</div>
+              <div style={{fontSize:11,color:S.il,marginTop:6}}>Cash: ${loc.startingCash.toLocaleString()} · Rent: ${loc.monthlyRent}/mo</div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (screen === "name") {
+    return (
+      <div style={{fontFamily:S.fb,background:S.bg,color:S.ink,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,textAlign:"center"}}>
+        <div style={{fontSize:48,marginBottom:12}}>📚</div>
+        <h2 style={{fontFamily:S.fd,fontSize:24,fontWeight:700,marginBottom:8}}>Name Your Bookstore</h2>
+        <input type="text" value={storeName} maxLength={30} onChange={e=>setStoreName(e.target.value)}
+          style={{fontFamily:S.fd,fontSize:20,fontWeight:700,textAlign:"center",padding:"12px 20px",border:`2px solid ${S.bd}`,borderRadius:10,background:S.cd,color:S.ink,width:300,maxWidth:"90%",outline:"none"}} />
+        <div style={{marginTop:20,display:"flex",gap:10}}>
+          <button onClick={()=>setScreen("select")} style={{padding:"10px 20px",background:S.cd,color:S.il,border:`1px solid ${S.bd}`,borderRadius:8,cursor:"pointer"}}>← Back</button>
+          <button onClick={()=>{setGk(k=>k+1);setScreen("game");}} disabled={!storeName.trim()}
+            style={{padding:"10px 28px",background:storeName.trim()?S.ac:S.bd,color:storeName.trim()?"#fff":S.il,border:"none",borderRadius:8,fontFamily:S.fd,fontSize:16,fontWeight:700,cursor:storeName.trim()?"pointer":"not-allowed"}}>
+            Open for Business →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === "game-load" && savedGame) return <GameScreen key={`load-${gk}`} locationId={savedGame.location} storeName={savedGame.storeName} savedState={savedGame} onBack={()=>setScreen("title")} onSaveUpdate={setSavedGame} />;
+  return <GameScreen key={`${lid}-${gk}`} locationId={lid} storeName={storeName} onBack={()=>setScreen("select")} onSaveUpdate={setSavedGame} />;
+}
+
+function GameScreen({ locationId, storeName: initialName, savedState, onBack, onSaveUpdate }) {
+  const [state, dispatch] = useReducer(gameReducer, locationId, (lid) => savedState || initGameState(lid));
+  const [tab, setTab] = useState("dashboard");
+
+  useEffect(() => { if (!savedState && initialName && initialName !== state.storeName) dispatch({type:"SET_NAME",name:initialName}); }, []);
+
+  const prevDay = useRef(state.day);
+  useEffect(() => {
+    if (state.day !== prevDay.current) {
+      prevDay.current = state.day;
+      const saveData = {...state,transactions:[],todaySales:{revenue:0,booksSold:{},customers:0}};
+      (async()=>{try{await store.set(SAVE_KEY,JSON.stringify(saveData));if(onSaveUpdate)onSaveUpdate(saveData);}catch(e){}})();
+    }
+  }, [state.day]);
+
+  const [phase, setPhase] = useState("planning");
+  const [timeLeft, setTimeLeft] = useState(DAY_DURATION);
+  const [reportData, setReportData] = useState(null);
+  const [speed, setSpeed] = useState(1);
+  const timerRef = useRef(null);
+  const salesRef = useRef(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const expectedCustomers = useMemo(() => {
+    const l = LOCATIONS[state.location];
+    const sz = getStoreSize(state);
+    const us = getUpgradeStats(state);
+    let tb = Math.round((l.dailyTrafficBase[0]+l.dailyTrafficBase[1])/2);
+    tb = Math.round(tb*((state.storeHours.close-state.storeHours.open)/9));
+    if(state.dayOfWeek>=5)tb=Math.round(tb*1.3);
+    let eventMult=1.0;
+    if(state.todayEvent&&EVENTS[state.todayEvent])eventMult=1+(EVENTS[state.todayEvent].trafficPct||0);
+    const rp=0.5+(state.reputation/100);
+    const ob=state.staff.shelvers>0?1+state.staff.shelvers*0.05:0.95;
+    const promoMult=1+(state.staff.promoters||0)*0.25;
+    return Math.max(1,Math.round(tb*eventMult*us.tm*sz.trafficMult*rp*ob*promoMult));
+  }, [state.day,state.location,state.reputation,state.staff,state.storeHours,state.todayEvent,state.upgrades,state.expansions]);
+
+  const openStore = () => {
+    dispatch({type:"RESET_DAY_SALES"});
+    setPhase("open"); setTimeLeft(DAY_DURATION); setTab("dashboard"); setSpeed(1);
+  };
+
+  useEffect(() => {
+    if (phase !== "open") { if(salesRef.current)clearInterval(salesRef.current); return; }
+    const saleInterval = Math.max(50,Math.floor((DAY_DURATION*1000)/(expectedCustomers*1.2)/speed));
+    salesRef.current = setInterval(() => {
+      const s = stateRef.current;
+      if (s.staff.cashiers === 0) return;
+      const l = LOCATIONS[s.location];
+      const gk = Object.keys(GENRES);
+      const liveBrowse = getShelfBrowseBonus(s);
+      if (Math.random() < 0.35 + liveBrowse.buyChanceMod) {
+        const g = gk[Math.floor(Math.random()*gk.length)];
+        let gm = l.genreBonus[g] || 1;
+        if (Math.random() < gm * 0.5 && s.inventory[g] && s.inventory[g].stock > 0) {
+          dispatch({type:"LIVE_SALE",genre:g,time:""});
+        } else dispatch({type:"LIVE_BROWSE",time:""});
+      } else dispatch({type:"LIVE_BROWSE",time:""});
+    }, saleInterval);
+    return () => { if(salesRef.current)clearInterval(salesRef.current); };
+  }, [phase, expectedCustomers, speed]);
+
+  useEffect(() => {
+    if (phase !== "open") return;
+    const tickMs = Math.max(50,Math.floor(1000/speed));
+    const iv = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(iv);
+          if(salesRef.current)clearInterval(salesRef.current);
+          const s = stateRef.current;
+          const l = LOCATIONS[s.location];
+          const sz = getStoreSize(s);
+          const totalRent = (l.monthlyRent+sz.extraRent)/30;
+          const sc = getStaffCost(s.staff);
+          const ec = s.todayEvent?EVENTS[s.todayEvent].cost:0;
+          const costs = Math.round(totalRent+sc+ec);
+          const revenue = s.todaySales.revenue;
+          const nts = [];
+          const gk2 = Object.keys(GENRES);
+          const os = gk2.filter(g=>s.inventory[g].stock===0);
+          if(os.length>0)nts.push("Out of stock: "+os.map(g=>GENRES[g].name).join(", ")+"!");
+          let rc=0;
+          const totalBooks=Object.values(s.todaySales.booksSold).reduce((a,b)=>a+b,0);
+          if(totalBooks>15)rc+=0.2;else if(totalBooks>8)rc+=0.1;
+          if(os.length>3)rc-=1.5;else if(os.length>1)rc-=0.8;else if(os.length===1)rc-=0.3;
+          const comments = generateGuestComments(s, ri(3,6));
+          setReportData({customers:s.todaySales.customers,revenue,costs,profit:revenue-costs,booksSold:s.todaySales.booksSold,notifications:nts,repChange:rc,comments});
+          setPhase("report");
+          return 0;
+        }
+        return prev-1;
+      });
+    }, tickMs);
+    return () => clearInterval(iv);
+  }, [phase, speed]);
+
+  const closeReport = () => {
+    if (reportData) {
+      const s = stateRef.current;
+      const curEv = s.todayEvent&&EVENTS[s.todayEvent]?EVENTS[s.todayEvent]:null;
+      const rareDropMult = curEv?(curEv.rareDropMult||1.0):1.0;
+      const dropChance = (0.10+(s.reputation/500)+(getUpgradeStats(s).coz/800))*rareDropMult;
+      const ownedIds = (s.rareBooks||[]).map(b=>b.id);
+      let drop = null;
+      if(Math.random()<dropChance) drop = rollRareBook(ownedIds);
+      dispatch({type:"ADVANCE_DAY_WITH_REPORT",report:reportData,preRolledDrop:drop});
+    }
+    setReportData(null); setPhase("planning"); setTimeLeft(DAY_DURATION);
+  };
+
+  const tabs = [
+    {id:"dashboard",l:"📋 Home"},{id:"inventory",l:"📦 Books"},{id:"staff",l:"👥 Staff"},
+    {id:"design",l:"🏠 Improve"},{id:"expand",l:"🏗️ Expand"},
+    {id:"events",l:"🎉 Events"},{id:"collection",l:"📜 Rare"},{id:"hours",l:"🕐 Hours"},
+  ];
+
+  return (
+    <div style={{fontFamily:S.fb,background:S.bg,color:S.ink,minHeight:"100vh",maxWidth:520,margin:"0 auto"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderBottom:`1px solid ${S.bd}`,background:S.cd,position:"sticky",top:0,zIndex:10}}>
+        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:S.il,fontSize:12}}>← Back</button>
+        <span style={{fontFamily:S.fd,fontWeight:700,fontSize:15}}>📚 {state.storeName}</span>
+        <span style={{fontSize:13,fontWeight:700,color:state.cash<500?"#c0392b":S.ad}}>${state.cash.toLocaleString()}</span>
+      </div>
+      {phase === "open" && (
+        <div style={{background:"#3e2723",padding:"6px 12px",display:"flex",alignItems:"center",gap:8}}>
+          <div style={{flex:1,height:8,background:"rgba(255,255,255,0.15)",borderRadius:4,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${(timeLeft/DAY_DURATION)*100}%`,background:timeLeft<20?"#e74c3c":timeLeft<60?"#f39c12":"#27ae60",borderRadius:4}} />
+          </div>
+          <span style={{color:"#fff",fontSize:13,fontWeight:700,fontFamily:S.fd,minWidth:40,textAlign:"right"}}>{Math.floor(timeLeft/60)}:{(timeLeft%60).toString().padStart(2,"0")}</span>
+          <div style={{display:"flex",gap:3}}>
+            {[1,2,5,10].map(s=>(
+              <button key={s} onClick={()=>setSpeed(s)} style={{padding:"2px 6px",fontSize:10,fontWeight:700,borderRadius:4,border:"none",cursor:"pointer",background:speed===s?"#f39c12":"rgba(255,255,255,0.15)",color:speed===s?"#3e2723":"rgba(255,255,255,0.6)"}}>{s}x</button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{display:"flex",gap:2,padding:"6px 8px",overflowX:"auto",borderBottom:`1px solid ${S.bd}`,background:S.pa,position:"sticky",top:phase==="open"?71:41,zIndex:10}}>
+        {tabs.map(t=><TabBtn key={t.id} active={tab===t.id} onClick={()=>setTab(t.id)}>{t.l}</TabBtn>)}
+      </div>
+      {phase === "report" && reportData && <EndOfDayReport state={state} report={reportData} onClose={closeReport} />}
+      {phase !== "report" && (
+        <div style={{paddingBottom:40}}>
+          {tab==="dashboard"&&<DashboardTab state={state} dispatch={dispatch} phase={phase} onOpenStore={openStore} timeLeft={timeLeft} />}
+          {tab==="inventory"&&<InventoryTab state={state} dispatch={dispatch} />}
+          {tab==="staff"&&<StaffTab state={state} dispatch={dispatch} />}
+          {tab==="design"&&<DesignTab state={state} dispatch={dispatch} />}
+          {tab==="expand"&&<ExpansionTab state={state} dispatch={dispatch} />}
+          {tab==="events"&&<EventsTab state={state} dispatch={dispatch} />}
+          {tab==="collection"&&<CollectionTab state={state} />}
+          {tab==="hours"&&<HoursTab state={state} dispatch={dispatch} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(BookstoreGame));
+</script>
+</body>
+</html>
